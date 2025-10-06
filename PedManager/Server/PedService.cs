@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using CitizenFX.Core;
 using static CitizenFX.Core.Native.API;
 
@@ -15,7 +16,21 @@ namespace PedManager.Server
             _db = db ?? throw new ArgumentNullException(nameof(db));
         }
 
-        private static string GetStableIdentifier(Player player)
+        public List<string> GetAllAvailablePeds()
+        {
+            // This can be loaded from a config or DB in a more complex implementation
+            return new List<string>
+            {
+                "g_m_m_chiboss_01",
+                "g_m_m_chicold_01",
+                "a_m_m_skater_01",
+		        "s_m_m_ciasec_01",
+		        "mp_m_freemode_01"
+			};
+		}
+
+		// Gets the identifier from player on login; prefers license2, then license, then first available
+		private static string GetStableIdentifier(Player player)
         {
             if (player == null) return null;
 

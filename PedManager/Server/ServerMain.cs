@@ -49,16 +49,29 @@ namespace PedManager.Server
 
                 _pedService.ApplyInitialPedFor(player);
             });
+
+            EventHandlers["PedManager:Server:OpenPedMenu"] += new Action<int>((src) =>
+            {
+                var peds = _pedService.GetAllAvailablePeds();
+                var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
+                if (player != null)
+                {
+                    // Send ped list to the client UI
+                    player.TriggerEvent("UI:OpenPedMenu", peds.Cast<object>().ToList());
+                }
+            });
         }
 
         private void OnSetPedCommand(int src, List<object> args, string raw)
         {
 			// Accepts:
-            // - /setped <serverId> <ped_name>
-            // - /setped <ped_name> for self
+			// - /setped with no args to open ped menu for self
+			// - /setped <serverId> <ped_name>
+			// - /setped <ped_name> for self
 			if (args == null || args.Count == 0)
             {
-                Reply(src, "Usage: /setped <serverId> <ped_name> OR /setped <ped_name>");
+                var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
+                player?.TriggerEvent("PedManager:Server:OpenPedMenu", src);
                 return;
             }
 
@@ -84,12 +97,12 @@ namespace PedManager.Server
                 // First arg is not a number, assume self and ped name is all args
                 if (src == 0)
                 {
-                    Reply(src, "Console must specify");
+                    Reply(src, "Console must specify <serverId> and <ped_name>.");
                     return;
                 }
 
                 targetId = src;
-				pedName = string.Join(" ", args.Skip(1).Select(a => a?.ToString() ?? string.Empty)).Trim().Trim('"');
+				pedName = string.Join(" ", args.Select(a => a?.ToString() ?? string.Empty)).Trim().Trim('"');
 			}
 
 			if (string.IsNullOrWhiteSpace(pedName))

@@ -13,5 +13,7 @@ namespace PedManager.Server
 
 		// Loads ped from DB and applies it to the player
 		void ApplyInitialPedFor(Player player);
+
+		List<string> GetAllAvailablePeds();
 	}
 }

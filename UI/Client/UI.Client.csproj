@@ -1,0 +1,19 @@
+﻿<Project Sdk="CitizenFX.Sdk.Client/0.2.3">
+
+  <ItemGroup>
+    <Compile Include="../Shared/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+
+  <!-- Include NUI files as Content for CitizenFX SDK -->
+  <ItemGroup>
+    <Content Include="../NUI/**/*.*">
+      <Link>NUI\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

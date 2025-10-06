@@ -1,0 +1,25 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>UI Menu</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- General menu for weapons/peds -->
+    <div id="menu" style="display:none;">
+        <h1 id="menu-title"></h1>
+        <ul id="menu-list"></ul>
+    </div>
+
+    <!-- Ped selection menu (opened when action === 'openPedMenu') -->
+    <div id="ped-menu" style="display:none;">
+        <h1>Select a Ped</h1>
+        <ul id="pedList"></ul>
+        <button id="closePedMenu">Close</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
