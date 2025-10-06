@@ -33,7 +33,7 @@ namespace armory.Client
 		/// <param name="pickupService">Optional prebuilt pickup client service.</param>
 		internal ClientMain(WeaponServiceClient weaponService, PickupServiceClient pickupService)
 		{
-			Debug.WriteLine("[Armory|Client] Loaded.");
+			Debug.WriteLine("[Armory|Client] Loaded from 1881 Framework.");
 			_weaponService = weaponService ?? new WeaponServiceClient();
 			_pickupService = pickupService ?? new PickupServiceClient();
 		}
