@@ -50,14 +50,37 @@ namespace PedManager.Server
                 _pedService.ApplyInitialPedFor(player);
             });
 
+            EventHandlers["PedManager:Server:SetPed"] += new Action<string, string>((serverId, model) =>
+            {
+                var player = Players.FirstOrDefault(p => p.Handle == serverId);
+                if (player == null)
+                {
+                    Debug.WriteLine($"[PedManager] SetPed: player '{serverId}' not found.");
+                    return;
+                }
+
+				// Set and persist
+				_pedService.SetPedFor(player, model);
+                Debug.WriteLine($"[PedManager] Set ped '{model}' for {serverId} (from event).");
+
+				// Notify client to apply immediately
+				player.TriggerEvent("PedManager:Client:ApplyPedNow", model);
+            });
             EventHandlers["PedManager:Server:OpenPedMenu"] += new Action<int>((src) =>
             {
+                Debug.WriteLine($"[PedManager] Opening ped menu for {src}");
                 var peds = _pedService.GetAllAvailablePeds();
-                var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
+				Debug.WriteLine($"[PedManager] Retrieved {peds?.Count ?? 0} peds from service");
+				var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
                 if (player != null)
                 {
+                    Debug.WriteLine($"[PedManager] Sending ped list to player {src}");
                     // Send ped list to the client UI
                     player.TriggerEvent("UI:OpenPedMenu", peds.Cast<object>().ToList());
+                }
+                else
+                {
+                    Debug.WriteLine($"[PedManager] Player {src} not found when trying to open ped menu.");
                 }
             });
         }
@@ -70,8 +93,7 @@ namespace PedManager.Server
 			// - /setped <ped_name> for self
 			if (args == null || args.Count == 0)
             {
-                var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
-                player?.TriggerEvent("PedManager:Server:OpenPedMenu", src);
+                TriggerEvent("PedManager:Server:OpenPedMenu", src);
                 return;
             }
 

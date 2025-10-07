@@ -1,0 +1,68 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: transparent;
+}
+
+#ped-menu, #menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #00c8ff;
+    border-radius: 10px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 500px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
+}
+
+h1 {
+    color: #00c8ff;
+    margin: 0 0 15px 0;
+    text-align: center;
+    font-size: 24px;
+}
+
+#pedList, #menu-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ped-item, #menu-list li {
+    background: rgba(0, 200, 255, 0.1);
+    border: 1px solid #00c8ff;
+    padding: 10px 15px;
+    margin: 5px 0;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: #ffffff;
+    border-radius: 5px;
+}
+
+.ped-item:hover, #menu-list li:hover {
+    background: rgba(0, 200, 255, 0.3);
+    transform: translateX(5px);
+}
+
+#closePedMenu {
+    width: 100%;
+    margin-top: 15px;
+    padding: 10px;
+    background: #d9534f;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s;
+}
+
+#closePedMenu:hover {
+    background: #c9302c;
+}

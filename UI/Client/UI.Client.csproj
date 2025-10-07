@@ -4,16 +4,20 @@
     <Compile Include="../Shared/**/*.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
-
   <!-- Include NUI files as Content for CitizenFX SDK -->
   <ItemGroup>
     <Content Include="../NUI/**/*.*">
       <Link>NUI\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  
+  <!-- Reference the custom Newtonsoft.Json.dll -->
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\libs\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

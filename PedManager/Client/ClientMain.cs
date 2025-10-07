@@ -35,6 +35,20 @@ namespace PedManager.Client
                     Debug.WriteLine($"[PedManager] Error applying model '{modelName}': {ex}");
                 }
             });
+
+			// NEW: Server authoritative event to set ped model DURING GAMEPLAY
+			EventHandlers["PedManager:Client:ApplyPedNow"] += new Action<string>(async (modelName) =>
+			{
+				Debug.WriteLine($"[PedManager] Client received ApplyPedNow event with model: '{modelName}'");
+				try
+				{
+					await _pedModelApplier.ApplyAsync(modelName);
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"[PedManager] Error applying model '{modelName}': {ex}");
+				}
+			});
 		}
     }
 }
