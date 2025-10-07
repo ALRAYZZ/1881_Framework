@@ -35,6 +35,8 @@ namespace PlayerCore.Server
 				{
 					// Calls PedManager to apply initial ped model on spawn
 					TriggerEvent("PedManager:Server:ApplyInitialPed", player.Handle);
+					// Load weapons from Armory module
+					TriggerEvent("Armory:Server:LoadWeapons", player.Handle);
 				});
 			});
 		}

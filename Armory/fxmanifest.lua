@@ -7,3 +7,5 @@ server_script 'Server/bin/Release/netstandard2.0/publish/armory.Server.net.dll'
 author 'ALRAYZZ'
 version '1.0.0'
 description 'Tools to spawn and give and spawn weapons'
+
+dependency 'Database'

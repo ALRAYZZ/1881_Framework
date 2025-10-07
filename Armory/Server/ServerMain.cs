@@ -49,15 +49,20 @@ namespace armory.Server
 			EventHandlers["armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
 			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
-			// Load weapons when player joins
-			EventHandlers["playerConnecting"] += new Action<Player>((player) =>
+			// Load weapons when PlayerCore signals the player is ready (similar to PedManager pattern)
+			EventHandlers["Armory:Server:LoadWeapons"] += new Action<string>((serverId) =>
 			{
-				Delay(2000).ContinueWith(_ =>
+				var player = Players.FirstOrDefault(p => p.Handle == serverId);
+				if (player == null)
 				{
-					_weaponService.LoadWeaponsForPlayer(player);
-					Debug.WriteLine($"[Armory|Server] Loaded weapons for player {player.Name}");
-				});
+					Debug.WriteLine($"[Armory|Server] LoadWeapons: player '{serverId}' not found.");
+					return;
+				}
+
+				_weaponService.LoadWeaponsForPlayer(player);
+				Debug.WriteLine($"[Armory|Server] Loaded weapons for {player.Name}");
 			});
+
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
 		}
 
