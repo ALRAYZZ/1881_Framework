@@ -1,20 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36414.22 d17.14
+VisualStudioVersion = 17.14.36414.22
 MinimumVisualStudioVersion = 15.0.26124.0
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Client", "Client", "{2CB42F12-E813-91B3-7D11-3220E40BEF4A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UI.Client", "Client\UI.Client.csproj", "{96BE995D-2364-4C04-931A-158635F7F404}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UI.Server", "Server\UI.Server.csproj", "{D7289B44-252F-4BBC-8657-853F832BE705}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NUI", "NUI", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
-	ProjectSection(SolutionItems) = preProject
-		app.js = app.js
-		index.html = index.html
-		style.css = style.css
-	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -57,7 +50,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{96BE995D-2364-4C04-931A-158635F7F404} = {2CB42F12-E813-91B3-7D11-3220E40BEF4A}
 		{D7289B44-252F-4BBC-8657-853F832BE705} = {2CB42F12-E813-91B3-7D11-3220E40BEF4A}
-		{02EA681E-C7D8-13C7-8484-4AC65E1B71E8} = {2CB42F12-E813-91B3-7D11-3220E40BEF4A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {DF0A79DC-7AC7-4D2E-A29F-2710D59F4BE5}

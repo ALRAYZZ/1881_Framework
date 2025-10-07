@@ -34,8 +34,11 @@ namespace armory.Server
 		/// </summary>
 		internal ServerMain(WeaponService weaponService, PickupService pickupService, PlayerWeaponTracker playerWeaponTracker, IChatMessenger chat)
 		{
+			// Get database connection from global
+			var db = Exports["Database"];
+
 			_playerWeaponTracker = playerWeaponTracker ?? new PlayerWeaponTracker();
-			_weaponService = weaponService ?? new WeaponService(_playerWeaponTracker);
+			_weaponService = weaponService ?? new WeaponService(_playerWeaponTracker, db);
 			_pickupService = pickupService ?? new PickupService(_weaponService);
 			var messenger = chat ?? new ChatMessenger(Players, "[Armory]");
 
@@ -46,6 +49,15 @@ namespace armory.Server
 			EventHandlers["armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
 			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
+			// Load weapons when player joins
+			EventHandlers["playerConnecting"] += new Action<Player>((player) =>
+			{
+				Delay(2000).ContinueWith(_ =>
+				{
+					_weaponService.LoadWeaponsForPlayer(player);
+					Debug.WriteLine($"[Armory|Server] Loaded weapons for player {player.Name}");
+				});
+			});
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
 		}
 
