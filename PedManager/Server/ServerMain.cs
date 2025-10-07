@@ -50,7 +50,8 @@ namespace PedManager.Server
                 _pedService.ApplyInitialPedFor(player);
             });
 
-            EventHandlers["PedManager:Server:SetPed"] += new Action<string, string>((serverId, model) =>
+			// Sets and persists a ped for a player, then notifies client to apply immediately
+			EventHandlers["PedManager:Server:SetPed"] += new Action<string, string>((serverId, model) =>
             {
                 var player = Players.FirstOrDefault(p => p.Handle == serverId);
                 if (player == null)
@@ -66,6 +67,7 @@ namespace PedManager.Server
 				// Notify client to apply immediately
 				player.TriggerEvent("PedManager:Client:ApplyPedNow", model);
             });
+
             EventHandlers["PedManager:Server:OpenPedMenu"] += new Action<int>((src) =>
             {
                 Debug.WriteLine($"[PedManager] Opening ped menu for {src}");

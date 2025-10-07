@@ -52,6 +52,30 @@ namespace UI.Client
                 SendNuiMessage(json);
             });
 
+            EventHandlers["UI:OpenWeaponMenu"] += new Action<List<object>>((weapons) =>
+            {
+                Debug.WriteLine($"[UI:Client] UI:OpenWeaponMenu triggered with {weapons?.Count ?? 0} weapons");
+
+                if (weapons == null || weapons.Count == 0)
+                {
+                    Debug.WriteLine("[UI:Client] WARNING: No weapons received!");
+                    return;
+                }
+
+                var weaponNames = weapons.Select(w => w.ToString()).ToList();
+                Debug.WriteLine($"[UI:Client] Weapon names: {string.Join(", ", weaponNames)}");
+
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                {
+                    action = "openWeaponMenu",
+                    weapons = weaponNames
+                });
+
+                Debug.WriteLine($"[UI:Client] Sending NUI message: {json}");
+                SetNuiFocus(true, true);
+                SendNuiMessage(json);
+            });
+
             // Listen for NUI callbacks
             RegisterNuiCallbackType("selectItem");
             EventHandlers["__cfx_nui:selectItem"] += new Action<IDictionary<string, object>, CallbackDelegate>((data, cb) =>
@@ -73,7 +97,6 @@ namespace UI.Client
                     try
                     {
 						// Send selection to server
-                        Debug.WriteLine($"[UI:Client] Calling TriggerServerEvent with type={type}, name={name}");
 						TriggerServerEvent("UI:SelectedItem", type, name);
                         Debug.WriteLine($"[UI:Client] TriggerServerEvent called successfully");
                     }

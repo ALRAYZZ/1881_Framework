@@ -5,7 +5,7 @@ body {
     background: transparent;
 }
 
-#ped-menu, #menu {
+#ped-menu, #weapon-menu, #menu {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -21,36 +21,65 @@ body {
     box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
 }
 
-h1 {
+h1, h2 {
     color: #00c8ff;
     margin: 0 0 15px 0;
     text-align: center;
     font-size: 24px;
 }
 
-#pedList, #menu-list {
+#pedList, #weaponList, #menu-list {
     list-style: none;
     padding: 0;
     margin: 0;
+    max-height: 50vh;
+    overflow-y: auto;
 }
 
-.ped-item, #menu-list li {
-    background: rgba(0, 200, 255, 0.1);
-    border: 1px solid #00c8ff;
-    padding: 10px 15px;
-    margin: 5px 0;
-    cursor: pointer;
-    transition: all 0.3s;
-    color: #ffffff;
-    border-radius: 5px;
-}
+    /* Custom scrollbar for webkit browsers */
+    #pedList::-webkit-scrollbar,
+    #weaponList::-webkit-scrollbar,
+    #menu-list::-webkit-scrollbar {
+        width: 8px;
+    }
 
-.ped-item:hover, #menu-list li:hover {
-    background: rgba(0, 200, 255, 0.3);
-    transform: translateX(5px);
-}
+    #pedList::-webkit-scrollbar-track,
+    #weaponList::-webkit-scrollbar-track,
+    #menu-list::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+    }
 
-#closePedMenu {
+    #pedList::-webkit-scrollbar-thumb,
+    #weaponList::-webkit-scrollbar-thumb,
+    #menu-list::-webkit-scrollbar-thumb {
+        background: rgba(0, 200, 255, 0.5);
+        border-radius: 4px;
+    }
+
+        #pedList::-webkit-scrollbar-thumb:hover,
+        #weaponList::-webkit-scrollbar-thumb:hover,
+        #menu-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 200, 255, 0.8);
+        }
+
+    .ped-item, .weapon-item, #menu-list li {
+        background: rgba(0, 200, 255, 0.1);
+        border: 1px solid #00c8ff;
+        padding: 10px 15px;
+        margin: 5px 0;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: #ffffff;
+        border-radius: 5px;
+    }
+
+        .ped-item:hover, .weapon-item:hover, #menu-list li:hover {
+            background: rgba(0, 200, 255, 0.3);
+            transform: translateX(5px);
+        }
+
+#closePedMenu, #closeWeaponMenu {
     width: 100%;
     margin-top: 15px;
     padding: 10px;
@@ -63,6 +92,24 @@ h1 {
     transition: background 0.3s;
 }
 
-#closePedMenu:hover {
-    background: #c9302c;
+    #closePedMenu:hover, #closeWeaponMenu:hover {
+        background: #c9302c;
+    }
+
+/* Search box styling (optional for future enhancement) */
+.search-box {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #00c8ff;
+    border-radius: 5px;
+    color: #ffffff;
+    font-size: 14px;
 }
+
+    .search-box:focus {
+        outline: none;
+        border-color: #00d4ff;
+        box-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+    }

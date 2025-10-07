@@ -44,6 +44,7 @@ namespace armory.Server
 			_commands.RegisterCommands();
 			EventHandlers["playerDropped"] += new Action<Player, string>(_playerWeaponTracker.OnPlayerDropped);
 			EventHandlers["armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
+			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
 		}
@@ -55,6 +56,30 @@ namespace armory.Server
 		private void OnTryCollectWeaponPickup([FromSource] Player player, int id)
 		{
 			_pickupService.TryCollectWeaponPickup(player, id);
+		}
+
+		private void OnUISelectedItem([FromSource] Player player, string type, string name)
+		{
+			if (player == null)
+			{
+				Debug.WriteLine("[Armory|Server] OnUISelectedItem: player is null!");
+				return;
+			}
+
+			Debug.WriteLine($"[Armory|Server] OnUISelectedItem called by player {player.Handle} with type '{type}' and name '{name}'");
+
+			if (type == "weapon")
+			{
+				if (WeaponValidator.TryNormalizeWeaponName(name, out var normalized, out _))
+				{
+					_weaponService.GiveWeapon(player, normalized);
+					Debug.WriteLine($"[Armory|Server] Gave weapon '{normalized}' to player {player.Handle}");
+				}
+				else 
+				{
+					Debug.WriteLine($"[Armory|Server] Invalid weapon name selected: '{name}'");
+				}
+			}
 		}
 	}
 }

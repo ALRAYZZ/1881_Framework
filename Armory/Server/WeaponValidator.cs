@@ -24,7 +24,7 @@ namespace armory.Server
             "WEAPON_PISTOL","WEAPON_PISTOL_MK2","WEAPON_COMBATPISTOL","WEAPON_APPISTOL","WEAPON_STUNGUN",
 			"WEAPON_PISTOL50","WEAPON_SNSPISTOL","WEAPON_SNSPISTOL_MK2","WEAPON_HEAVYPISTOL","WEAPON_VINTAGEPISTOL",
 			"WEAPON_MARKSMANPISTOL","WEAPON_REVOLVER","WEAPON_REVOLVER_MK2","WEAPON_DOUBLEACTION",
-			"WEAPON_NAVYREVOLVER","WEAPON_CERAMICPISTOL","WEAPON_FLAREGUN",
+			"WEAPON_NAVYREVOLVER","WEAPON_CERAMICPISTOL","WEAPON_FLAREGUN", "WEAPON_PISTOLXM3",
 
             // SMGs
             "WEAPON_MICROSMG","WEAPON_SMG","WEAPON_SMG_MK2","WEAPON_ASSAULTSMG","WEAPON_COMBATPDW",
@@ -81,6 +81,12 @@ namespace armory.Server
 
 			normalized = candidate;
 			return true;
+		}
+
+		// Basic getter for all valid weapons
+		public static List<string> GetAllWeapons()
+		{
+			return new List<string>(ValidWeapons);
 		}
 	}
 }

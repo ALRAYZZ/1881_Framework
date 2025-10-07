@@ -52,6 +52,16 @@ namespace armory.Server
 		/// </summary>
 		private void HandleGiveWeapon(int src, List<object> args, string raw)
 		{
+			// If no args, open weapon selection menu
+			// FiveM passes an empty string as first arg if no args provided
+			bool hasNoArgs = args.Count == 0 || (args.Count == 1 && string.IsNullOrWhiteSpace(args[0]?.ToString()));
+			if (hasNoArgs)
+			{
+				Debug.WriteLine($"[Armory|Server] No arguments provided, opening weapon menu.");
+				OpenWeaponMenu(src);
+				return;
+			}
+
 			if (!TryResolveTargetWithExtras(src, args, out var player, out var weapon, out var components, out var tintIndex)) return;
 
 			_weaponService.GiveWeapon(player, weapon, components, tintIndex);
@@ -160,6 +170,31 @@ namespace armory.Server
 		/// Attempts to resolve a target player and weapon from the command args.
 		/// Replies with errors on failure.
 		/// </summary>
+
+		private void OpenWeaponMenu(int src)
+		{
+			try
+			{
+				var player = _players[src];
+				if (player == null)
+				{
+					Debug.WriteLine($"[Armory|Server] ERROR: Could not find player {src}");
+					return;
+				}
+
+				var weaponList = WeaponValidator.GetAllWeapons();
+				Debug.WriteLine($"[Armory|Server] Opening weapon menu for player {src} ({player.Name}) with {weaponList.Count} weapons");
+
+				// Trigger client event to open the weapon selection menu
+				BaseScript.TriggerClientEvent(player, "UI:OpenWeaponMenu", weaponList);
+				Debug.WriteLine($"[Armory|Server] UI:OpenWeaponMenu event triggered for player {src}");
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine($"[Armory|Server] ERROR in OpenWeaponMenu: {ex.Message}");
+			}
+		}
+
 		private bool TryResolveTarget(int src, List<object> args, out Player target, out string weapon)
 		{
 			target = null;
