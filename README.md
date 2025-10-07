@@ -7,13 +7,18 @@
 
 ## Overview
 
-1881_Framework is a lightweight, modular C# framework for FiveM, designed to handle core server functionality in a clean and maintainable way.  
+1881_Framework is an open-source, lightweight, modular C# framework for FiveM, designed to handle core server functionality in a clean and maintainable way.
+
+This is mostly a learning project for my C# skills in general, plus database integration and managing client-server relations, with authority and security in mind.
+
+
 It currently provides separate modules for:
 
 - **PlayerCore** – Handles player registration, loading basic data (name, identifier, last login), and initial setup.  
 - **PedManager** – Manages player ped models, including loading from the database or applying defaults.  
 - **Database** – A shared resource for low-level database operations.  
-- **Armory** – Handles weapons, inventory, and related logic.  
+- **Armory** – Handles weapons, inventory, and related logic.
+- **UI** - Manages all UI logic for different modules.
 
 Each module is structured as its own solution inside the framework but is integrated under a single Git repository for easy development and deployment.  
 
