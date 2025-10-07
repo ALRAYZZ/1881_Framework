@@ -50,20 +50,44 @@ namespace armory.Server
 			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
 			// Load weapons when PlayerCore signals the player is ready (similar to PedManager pattern)
-			EventHandlers["Armory:Server:LoadWeapons"] += new Action<string>((serverId) =>
-			{
-				var player = Players.FirstOrDefault(p => p.Handle == serverId);
-				if (player == null)
-				{
-					Debug.WriteLine($"[Armory|Server] LoadWeapons: player '{serverId}' not found.");
-					return;
-				}
+			EventHandlers["Armory:Server:LoadWeapons"] += new Action<string>(OnLoadWeapons);
 
-				_weaponService.LoadWeaponsForPlayer(player);
-				Debug.WriteLine($"[Armory|Server] Loaded weapons for {player.Name}");
-			});
+			// Reload weapons after ped change (SetPlayerModel removes all weapons)
+			EventHandlers["Armory:Server:ReloadWeapons"] += new Action<Player>(OnReloadWeapons);
 
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
+		}
+
+		/// <summary>
+		/// Loads weapons for a player when they first join (called by PlayerCore).
+		/// </summary>
+		private void OnLoadWeapons(string serverId)
+		{
+			var player = Players.FirstOrDefault(p => p.Handle == serverId);
+			if (player == null)
+			{
+				Debug.WriteLine($"[Armory|Server] LoadWeapons: player '{serverId}' not found.");
+				return;
+			}
+
+			_weaponService.LoadWeaponsForPlayer(player);
+			Debug.WriteLine($"[Armory|Server] Loaded weapons for {player.Name}");
+		}
+
+		/// <summary>
+		/// Reloads weapons after a ped model change (called by PedManager client).
+		/// </summary>
+		private void OnReloadWeapons([FromSource] Player player)
+		{
+			if (player == null)
+			{
+				Debug.WriteLine("[Armory|Server] ReloadWeapons: player is null!");
+				return;
+			}
+
+			Debug.WriteLine($"[Armory|Server] ReloadWeapons triggered by {player.Name} ({player.Handle})");
+			_weaponService.LoadWeaponsForPlayer(player);
+			Debug.WriteLine($"[Armory|Server] Reloaded weapons for {player.Name} after ped change");
 		}
 
 		/// <summary>

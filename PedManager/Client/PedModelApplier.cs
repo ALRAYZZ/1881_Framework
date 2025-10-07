@@ -45,11 +45,16 @@ namespace PedManager.Client
 				}
 			}
 
+			// Set player model removes all weapons and resets components
 			SetPlayerModel(PlayerId(), hash);
 			SetModelAsNoLongerNeeded(hash);
 			SetPedDefaultComponentVariation(PlayerPedId());
 
 			Debug.WriteLine($"[PedManager] Model '{modelName}' applied.");
+
+			// Notify Armory to re-equip if available
+			await BaseScript.Delay(100); // slight delay to ensure model is set
+			BaseScript.TriggerServerEvent("Armory:Server:ReloadWeapons", GetPlayerServerId(PlayerId()).ToString());
 		}
 
 	}
