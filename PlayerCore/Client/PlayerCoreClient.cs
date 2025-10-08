@@ -33,6 +33,20 @@ namespace PlayerCore.Client
 				SaveCurrentPosition("Manual logout");
 				_ = DelayedDisconnect();
 			}), false);
+
+			RegisterCommand("pos", new Action<int, List<object>, string>((source, args, raw) =>
+			{
+				var playerPed = PlayerPedId();
+				if (DoesEntityExist(playerPed))
+				{
+					var coords = GetEntityCoords(playerPed, true);
+					Debug.WriteLine($"[PlayerCore] Current position: X={coords.X:F2}, Y={coords.Y:F2}, Z={coords.Z:F2}");
+				}
+				else
+				{
+					Debug.WriteLine("[PlayerCore] Player ped doesn't exist.");
+				}
+			}), false);
 		}
 
 		// Triggered by FiveM when player spawns
