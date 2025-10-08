@@ -8,14 +8,10 @@ using static CitizenFX.Core.Native.API;
 
 namespace armory.Client.Weapons
 {
-	/// <summary>
 	/// Client-side event handlers that apply weapon changes received from the server.
-	/// </summary>
 	public class WeaponServiceClient : BaseScript 
 	{
-		/// <summary>
 		/// Registers client event handlers for giving and removing weapons.
-		/// </summary>
 		public WeaponServiceClient()
 		{
 			EventHandlers["armory:ReceiveWeapon"] += new Action<string, dynamic, int>(OnReceiveWeapon);
@@ -23,9 +19,7 @@ namespace armory.Client.Weapons
 			EventHandlers["armory:RemoveAllWeapons"] += new Action(OnRemoveAllWeapons);
 		}
 
-		/// <summary>
 		/// Spawns the specified weapon on the local player with optional components and tint.
-		/// </summary>
 		private void OnReceiveWeapon(string name, dynamic componentsObj, int tintIndex)
 		{
 			Debug.WriteLine($"[Armory|Client] OnReceiveWeapon called with: '{name}', tintIndex: {tintIndex}");
@@ -99,9 +93,7 @@ namespace armory.Client.Weapons
 			Debug.WriteLine($"[Armory|Client] Successfully gave weapon {name} to player");
 		}
 
-		/// <summary>
 		/// Removes the specified weapon from the local player.
-		/// </summary>
 		private void OnRemoveWeapon(string name)
 		{
 			var ped = PlayerPedId();
@@ -114,9 +106,7 @@ namespace armory.Client.Weapons
 				SetCurrentPedWeapon(ped, (uint)GetHashKey("WEAPON_UNARMED"), true);
 		}
 
-		/// <summary>
 		/// Removes all weapons from the local player and switches to unarmed.
-		/// </summary>
 		private void OnRemoveAllWeapons()
 		{
 			var ped = PlayerPedId();

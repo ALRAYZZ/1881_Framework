@@ -7,9 +7,7 @@ using static CitizenFX.Core.Native.API;
 
 namespace armory.Server
 {
-	/// <summary>
 	/// Registers and handles server commands for the armory (weapons and pickups).
-	/// </summary>
 	public class CommandHandler
 	{
 		private readonly IWeaponService _weaponService;
@@ -17,9 +15,7 @@ namespace armory.Server
 		private readonly PlayerList _players;
 		private readonly IChatMessenger _chat;
 
-		/// <summary>
 		/// Creates a command handler that delegates to weapon/pickup services and replies to invokers.
-		/// </summary>
 		public CommandHandler(IWeaponService weaponService, PickupService pickupService, PlayerList players, IChatMessenger chat)
 		{
 			_weaponService = weaponService ?? throw new ArgumentNullException(nameof(weaponService));
@@ -28,9 +24,7 @@ namespace armory.Server
 			_chat = chat ?? throw new ArgumentNullException(nameof(chat));
 		}
 
-		/// <summary>
 		/// Registers all commands exposed by the armory on the server.
-		/// </summary>
 		public void RegisterCommands()
 		{
 			// USAGE: /giveweapon [targetId] [weaponName] [components] [tintIndex]
@@ -47,9 +41,7 @@ namespace armory.Server
 			RegisterCommand("clearweaponpickups", new Action<int, List<object>, string>(HandleClearWeaponPickups), true);
 		}
 
-		/// <summary>
 		/// Command handler: gives a weapon to a target player with optional components and tint.
-		/// </summary>
 		private void HandleGiveWeapon(int src, List<object> args, string raw)
 		{
 			// If no args, open weapon selection menu
@@ -68,9 +60,7 @@ namespace armory.Server
 			_chat.Info(src, $"Gave {weapon} to {player?.Name ?? "unknown"}.");
 		}
 
-		/// <summary>
 		/// Command handler: removes a weapon (or all weapons if none provided) from a player.
-		/// </summary>
 		private void HandleRemoveWeapon(int src, List<object> args, string raw)
 		{
 			if (!TryResolveTarget(src, args, out var player, out var weapon)) return;
@@ -87,9 +77,7 @@ namespace armory.Server
 			}
 		}
 
-		/// <summary>
 		/// Command handler: removes all weapons from a target player (or the executor).
-		/// </summary>
 		private void HandleRemoveAllWeapons(int src, List<object> args, string raw)
 		{
 			Player target;
@@ -120,9 +108,7 @@ namespace armory.Server
 			_chat.Info(src, $"Removed all weapons from {target.Name}.");
 		}
 
-		/// <summary>
 		/// Command handler: spawns a weapon pickup near the player or at given coordinates.
-		/// </summary>
 		private void HandleWeaponPickup(int src, List<object> args, string raw)
 		{
 			var player = _players[src];
@@ -157,19 +143,13 @@ namespace armory.Server
 			_chat.Info(src, $"Spawned pickup {weapon} ({ammo} ammo).");
 		}
 
-		/// <summary>
 		/// Command handler: clears all existing weapon pickups.
-		/// </summary>
 		private void HandleClearWeaponPickups(int src, List<object> args, string raw)
 		{
 			_pickupService.RemoveAllWeaponPickups();
 			_chat.Info(src, "Cleared all weapon pickups.");
 		}
 
-		/// <summary>
-		/// Attempts to resolve a target player and weapon from the command args.
-		/// Replies with errors on failure.
-		/// </summary>
 
 		private void OpenWeaponMenu(int src)
 		{
@@ -244,10 +224,8 @@ namespace armory.Server
 			return true;
 		}
 
-		/// <summary>
 		/// Attempts to resolve a target, weapon, optional components, and tint index from args.
 		/// Replies with errors on failure.
-		/// </summary>
 		private bool TryResolveTargetWithExtras(int src, List<object> args, out Player target, out string weapon, out List<string> components, out int tintIndex)
 		{
 			target = null;

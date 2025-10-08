@@ -7,10 +7,8 @@ using static CitizenFX.Core.Native.API;
 
 namespace armory.Server
 {
-    /// <summary>
     /// Server entry point. Wires services and registers events/commands.
     /// Uses a parameterless constructor for FiveM and an internal DI-friendly constructor for tests.
-    /// </summary>
     public class ServerMain : BaseScript
 	{
 		private readonly WeaponService _weaponService;
@@ -18,9 +16,7 @@ namespace armory.Server
 		private readonly PlayerWeaponTracker _playerWeaponTracker;
 		private readonly CommandHandler _commands;
 
-		/// <summary>
 		/// FiveM entrypoint. Composes concrete dependencies.
-		/// </summary>
 		public ServerMain() : this(
 			weaponService: null,
 			pickupService: null,
@@ -29,9 +25,7 @@ namespace armory.Server
 		{
 		}
 
-		/// <summary>
 		/// DI-friendly entrypoint. Any null dependency will be constructed with defaults.
-		/// </summary>
 		internal ServerMain(WeaponService weaponService, PickupService pickupService, PlayerWeaponTracker playerWeaponTracker, IChatMessenger chat)
 		{
 			// Get database connection from global
@@ -58,9 +52,7 @@ namespace armory.Server
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
 		}
 
-		/// <summary>
 		/// Loads weapons for a player when they first join (called by PlayerCore).
-		/// </summary>
 		private void OnLoadWeapons(string serverId)
 		{
 			var player = Players.FirstOrDefault(p => p.Handle == serverId);
@@ -74,9 +66,7 @@ namespace armory.Server
 			Debug.WriteLine($"[Armory|Server] Loaded weapons for {player.Name}");
 		}
 
-		/// <summary>
 		/// Reloads weapons after a ped model change (called by PedManager client).
-		/// </summary>
 		private void OnReloadWeapons([FromSource] Player player)
 		{
 			if (player == null)
@@ -90,10 +80,8 @@ namespace armory.Server
 			Debug.WriteLine($"[Armory|Server] Reloaded weapons for {player.Name} after ped change");
 		}
 
-		/// <summary>
 		/// Server-side handler invoked when a client attempts to collect a weapon pickup.
 		/// Delegates to the pickup service.
-		/// </summary>
 		private void OnTryCollectWeaponPickup([FromSource] Player player, int id)
 		{
 			_pickupService.TryCollectWeaponPickup(player, id);

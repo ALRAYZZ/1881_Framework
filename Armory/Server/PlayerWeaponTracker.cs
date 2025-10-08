@@ -9,6 +9,7 @@ namespace armory.Server
 	{
 		private readonly Dictionary<string, HashSet<string>> _playerWeapons = new Dictionary<string, HashSet<string>>();
 
+		// Main method to get weapons for a player
 		public HashSet<string> GetCurrentWeapons(Player player)
 		{
 			if (player == null || string.IsNullOrEmpty(player.Handle)) return null;
@@ -19,6 +20,7 @@ namespace armory.Server
 				: _playerWeapons[player.Handle] = new HashSet<string>();
 		}
 
+		// Methods to manipulate weapons
 		public void AddWeapon(Player player, string weapon)
 			=> GetCurrentWeapons(player)?.Add(weapon);
 

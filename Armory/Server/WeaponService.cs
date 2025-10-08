@@ -6,53 +6,29 @@ using static CitizenFX.Core.Native.API;
 
 namespace armory.Server
 {
-	/// <summary>
 	/// Abstraction for server-side weapon operations triggered by commands or pickups.
-	/// </summary>
 	public interface IWeaponService
 	{
-		/// <summary>
 		/// Gives a weapon to the specified player with optional components and tint.
-		/// </summary>
-		/// <param name="player">Target player.</param>
-		/// <param name="weapon">Normalized weapon name (e.g., WEAPON_PISTOL).</param>
-		/// <param name="components">Optional list of component names.</param>
-		/// <param name="tintIndex">Tint index (or -1 to skip).</param>
 		void GiveWeapon(Player player, string weapon, List<string> components = null, int tintIndex = -1);
 
-		/// <summary>
 		/// Removes a specific weapon from the specified player.
-		/// </summary>
-		/// <param name="player">Target player.</param>
-		/// <param name="weapon">Normalized weapon name.</param>
 		void RemoveWeapon(Player player, string weapon);
 
-		/// <summary>
 		/// Removes all weapons from the specified player.
-		/// </summary>
-		/// <param name="player">Target player.</param>
 		void RemoveAllWeapons(Player player);
 
-		/// <summary>
 		/// Loads and applies all weapons for the specified player from the database.
-		/// </summary>
-		/// <param name="player">Target player.</param>
 		void LoadWeaponsForPlayer(Player player);
 	}
 
-	/// <summary>
 	/// Default server-side implementation for giving/removing weapons.
-	/// </summary>
 	public class WeaponService : IWeaponService
 	{
 		private readonly PlayerWeaponTracker _weaponTracker;
 		private readonly dynamic _db;
 
-		/// <summary>
 		/// Creates a weapon service using the provided player weapon tracker and database export.
-		/// </summary>
-		/// <param name="weaponTracker">Tracker used to maintain server-side weapon state.</param>
-		/// <param name="db">Database export for persistence (can be null to disable persistence).</param>
 		public WeaponService(PlayerWeaponTracker weaponTracker, dynamic db)
 		{
 			_weaponTracker = weaponTracker ?? throw new ArgumentNullException(nameof(weaponTracker));
@@ -64,7 +40,6 @@ namespace armory.Server
 			}
 		}
 
-		/// <inheritdoc />
 		public void GiveWeapon(Player player, string weapon, List<string> components = null, int tintIndex = -1)
 		{
 			if (!IsPlayerConnected(player, out var reason))
@@ -83,7 +58,6 @@ namespace armory.Server
 			Debug.WriteLine($"[Armory|Server] Gave {weapon} to {player.Name}");
 		}
 
-		/// <inheritdoc />
 		public void RemoveWeapon(Player player, string weapon)
 		{
 			if (!IsPlayerConnected(player, out var reason))
@@ -101,7 +75,6 @@ namespace armory.Server
 			Debug.WriteLine($"[Armory|Server] Removed {weapon} from {player.Name}");
 		}
 
-		/// <inheritdoc />
 		public void RemoveAllWeapons(Player player)
 		{
 			if (!IsPlayerConnected(player, out var reason))
@@ -119,7 +92,6 @@ namespace armory.Server
 			Debug.WriteLine($"[Armory|Server] Cleared all weapons from {player.Name}");
 		}
 
-		/// <inheritdoc />
 		public void LoadWeaponsForPlayer(Player player)
 		{
 			if (!IsPlayerConnected(player, out var reason))
@@ -204,9 +176,7 @@ namespace armory.Server
 			}
 		}
 
-		/// <summary>
 		/// Persists weapon data to both player_inventory and player_weapons tables.
-		/// </summary>
 		private void PersistWeaponToDatabase(Player player, string weapon, int ammo, List<string> components, string grantedBy)
 		{
 			if (_db == null) return;
@@ -274,9 +244,7 @@ namespace armory.Server
 			}
 		}
 
-		/// <summary>
 		/// Removes weapon from both player_inventory and player_weapons tables.
-		/// </summary>
 		private void RemoveWeaponFromDatabase(Player player, string weapon)
 		{
 			if (_db == null) return;
@@ -341,9 +309,7 @@ namespace armory.Server
 			}
 		}
 
-		/// <summary>
 		/// Removes all weapons from both tables for the specified player.
-		/// </summary>
 		private void RemoveAllWeaponsFromDatabase(Player player)
 		{
 			if (_db == null) return;
@@ -388,9 +354,7 @@ namespace armory.Server
 			}
 		}
 
-		/// <summary>
 		/// Gets the identifier from player; prefers license2, then license, then first available.
-		/// </summary>
 		private static string GetStableIdentifier(Player player)
 		{
 			if (player == null) return null;
@@ -409,12 +373,7 @@ namespace armory.Server
 			return license ?? fallback;
 		}
 
-		/// <summary>
 		/// Validates the player reference and whether they are connected (ped exists).
-		/// </summary>
-		/// <param name="player">Player to validate.</param>
-		/// <param name="reason">If invalid, contains the reason.</param>
-		/// <returns>True if valid and connected; otherwise false.</returns>
 		private static bool IsPlayerConnected(Player player, out string reason)
 		{
 			reason = null;

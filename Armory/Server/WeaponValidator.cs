@@ -5,9 +5,7 @@ using static CitizenFX.Core.Native.API;
 
 namespace armory.Server
 {
-	/// <summary>
 	/// Validates and normalizes weapon names against a server-side allowlist.
-	/// </summary>
 	public class WeaponValidator
 	{
 		// Server-authoritative ALLOWLIST of valid weapon names
@@ -56,13 +54,7 @@ namespace armory.Server
 			"WEAPON_SMOKEGRENADE","WEAPON_TEARGAS","WEAPON_FLARE","WEAPON_SNOWBALL"
 		};
 
-		/// <summary>
 		/// Validates and normalizes an input weapon name to the "WEAPON_*" form and returns its hash.
-		/// </summary>
-		/// <param name="input">Input weapon name (with or without WEAPON_ prefix).</param>
-		/// <param name="normalized">Normalized name if valid.</param>
-		/// <param name="hash">Weapon hash if valid.</param>
-		/// <returns>True if the name is valid and normalized; otherwise false.</returns>
 		public static bool TryNormalizeWeaponName(string input, out string normalized, out uint hash)
 		{
 			normalized = null;
