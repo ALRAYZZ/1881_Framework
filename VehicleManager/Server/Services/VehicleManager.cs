@@ -6,6 +6,7 @@ using VehicleManager.Server.Interfaces;
 
 namespace VehicleManager.Server.Services
 {
+	// Triggers client events to spawn or delete vehicles
 	public class VehicleManager : IVehicleManager
 	{
 		public void RequestSpawnVehicle(Player player, string modelName)

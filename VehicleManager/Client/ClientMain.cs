@@ -7,7 +7,7 @@ using static CitizenFX.Core.Native.API;
 
 namespace VehicleManager.Client
 {
-    public class ClientMain : BaseScript
+	public class ClientMain : BaseScript
     {
         private readonly VehicleFactory _vehicleFactory;
         private readonly VehicleEvents _vehicleEvents;
@@ -17,10 +17,10 @@ namespace VehicleManager.Client
             Debug.WriteLine("[VehicleManager] Client initialized.");
 
             // Initialize core services
-            _vehicleFactory = new VehicleFactory(EventHandlers);
+            _vehicleFactory = new VehicleFactory(EventHandlers); // Pass EventHandlers to the factory so we can trigger events from it
 
-            // Register client events, passing the factory
-            _vehicleEvents = new VehicleEvents(_vehicleFactory, EventHandlers);
-        }
+			// Register client events, passing the factory
+			_vehicleEvents = new VehicleEvents(_vehicleFactory, EventHandlers); // Pass EventHandlers to register event handlers
+		}
     }
 }

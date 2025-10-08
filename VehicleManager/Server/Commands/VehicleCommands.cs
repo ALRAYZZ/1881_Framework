@@ -7,6 +7,7 @@ using static CitizenFX.Core.Native.API;
 
 namespace VehicleManager.Server.Commands
 {
+	// Registers server commands for vehicle management
 	public class VehicleCommands
 	{
 		private readonly IVehicleManager _vehicleManager;
