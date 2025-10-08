@@ -151,6 +151,7 @@ namespace armory.Server
 		}
 
 
+		// Opens a weapon selection menu for the player to choose a weapon to receive. (Is called by HandleGiveWeapon with no args)
 		private void OpenWeaponMenu(int src)
 		{
 			try
