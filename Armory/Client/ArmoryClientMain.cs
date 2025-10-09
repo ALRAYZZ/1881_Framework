@@ -15,10 +15,8 @@ namespace armory.Client
 		private readonly WeaponServiceClient _weaponService;
 		private readonly PickupServiceClient _pickupService;
 
-		/// FiveM entrypoint. Composes concrete dependencies.
-		public ArmoryClientMain() : this(
-			weaponService: null,
-			pickupService: null)
+		/// FiveM entrypoint. Concrete dependencies.
+		public ArmoryClientMain() : this(weaponService: null, pickupService: null)
 		{
 		}
 

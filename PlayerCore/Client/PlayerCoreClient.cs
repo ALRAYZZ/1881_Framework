@@ -8,21 +8,45 @@ namespace PlayerCore.Client
 {
 	public class PlayerCoreClient : BaseScript
 	{
-		private bool _sent;
-		private bool _hasSpawnPosition;
-		private float _spawnX, _spawnY, _spawnZ, _spawnHeading;
-
 		// Auto-save interval in milliseconds 
 		private const int AutoSaveInterval = 60000; // 60 seconds
 
+		// Pending spawn data handshake
+		private TaskCompletionSource<SpawnData> _spawnTcs;
+
 		public PlayerCoreClient()
 		{
-			// Native FiveM event when player spawns
-			EventHandlers["playerSpawned"] += new Action<dynamic>(OnPlayerSpawned);
-			EventHandlers["PlayerCore:Client:SetSpawnPosition"] += new Action<float, float, float, float>(OnSetSpawnPosition);
+			// Own the spawn flow fully via spawn manager
+			Exports["spawnmanager"].setAutoSpawn(false);
+
+			// Single auto spawn callback used for initial spawn and respawns
+			Exports["spawnmanager"].setAutoSpawnCallback(new Action(async () =>
+			{
+				try
+				{
+					var data = await RequestSpawnDataAsync(5000);
+					await SpawnWithManagerAsync(data);
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"[PlayerCore] Error during auto-spawn: {ex}");
+
+					// Fallback: spawn at current location with freemode ped
+					// Potential REFACTOR 
+					var fallback = CreateFallbackSpawnData();
+					await SpawnWithManagerAsync(fallback);
+				}
+			}));
+
+			// Enable auto-spawn and trigger initial spawn
+			Exports["spawnmanager"].setAutoSpawn(true);
+			Exports["spawnmanager"].forceRespawn();
 
 			// Handle player dies
 			EventHandlers["baseevents:onPlayerDied"] += new Action<int, dynamic>(OnPlayerDied);
+
+			// Server sends spawn data to complete handshake
+			EventHandlers["PlayerCore:Client:ReceiveSpawnData"] += new Action<float, float, float, float, string, int, int>(OnReceiveSpawnData);
 
 			// Handle resource stop to save position on logout
 			EventHandlers["onResourceStop"] += new Action<string>(OnResourceStop);
@@ -52,77 +76,154 @@ namespace PlayerCore.Client
 			}), false);
 		}
 
-		// Triggered by FiveM when player spawns
-		private async void OnPlayerSpawned(dynamic _)
+		// Struct to carry spawn data
+		private struct SpawnData
 		{
-			if (_sent) return;
+			public float X;
+			public float Y;
+			public float Z;
+			public float Heading;
+			public string PedModel;
+			public int Health;
+			public int Armor;
+		}
 
-			// Wait for player ped to be valid and network session to be active
-			while (!NetworkIsSessionActive() || !IsPedAPlayer(PlayerPedId()) || PlayerPedId() <= 0)
+		// Server -> Client: Final spawn data to use for the exact next spawn
+		private void OnReceiveSpawnData(float  x, float y, float z, float heading, string pedModel, int health, int armor)
+		{
+			try
 			{
-				await Delay(100);
+				if (_spawnTcs != null && !_spawnTcs.Task.IsCompleted)
+				{
+					_spawnTcs.SetResult(new SpawnData
+					{
+						X = x,
+						Y = y,
+						Z = z,
+						Heading = heading,
+						PedModel = string.IsNullOrWhiteSpace(pedModel) ? "mp_m_freemode_01" : pedModel,
+						Health = health,
+						Armor = armor
+					});
+				}
 			}
-
-			_sent = true;
-			TriggerServerEvent("PlayerCore:Server:PlayerReady");
-			Debug.WriteLine("[PlayerCore] Player ready event sent to server.");
-
-			// Apply spawn position if already received (handles race condition)
-			if (_hasSpawnPosition)
+			catch (Exception ex)
 			{
-				await ApplySpawnPosition();
+				Debug.WriteLine($"[PlayerCore] Error in OnReceiveSpawnData: {ex}");
 			}
 		}
 
-		// Triggered when player dies
+		// Ask server for spawn data and await response
+		private async Task<SpawnData> RequestSpawnDataAsync(int timeoutMs)
+		{
+			_spawnTcs = new TaskCompletionSource<SpawnData>();
+
+			// Request server to compute/return the next spawn point and model
+			TriggerServerEvent("PlayerCore:Server:RequestSpawnData");
+
+			var start = GetGameTimer();
+			while (!_spawnTcs.Task.IsCompleted && (GetGameTimer() - start) < timeoutMs)
+			{
+				await Delay(0);
+			}
+
+			if (_spawnTcs.Task.IsCompleted)
+			{
+				return await _spawnTcs.Task;
+			}
+
+			Debug.WriteLine("[PlayerCore] Timeout waiting for spawn data from server.");
+			return CreateFallbackSpawnData();
+		}
+
+		private SpawnData CreateFallbackSpawnData()
+		{
+			var ped = PlayerPedId();
+			if (DoesEntityExist(ped))
+			{
+				var c = GetEntityCoords(ped, true);
+				var h = GetEntityHeading(ped);
+				return new SpawnData
+				{
+					X = c.X,
+					Y = c.Y,
+					Z = c.Z,
+					Heading = h,
+					PedModel = "mp_m_freemode_01",
+					Health = 200,
+					Armor = 0
+				};
+			}
+
+			return new SpawnData
+			{
+				X = 0f,
+				Y = 0f,
+				Z = 72f,
+				Heading = 0f,
+				PedModel = "mp_m_freemode_01",
+				Health = 200,
+				Armor = 0
+			};
+		}
+
+		// Peform spawn using spawnmanagert using server-provided data
+		private async Task SpawnWithManagerAsync(SpawnData data)
+		{
+			// Options accepted by spawnmanager
+			var options = new Dictionary<string, object>
+			{
+				["x"] = data.X,
+				["y"] = data.Y,
+				["z"] = data.Z,
+				["heading"] = data.Heading,
+				["model"] = data.PedModel,
+				["skipFade"] = false
+			};
+
+
+			Exports["spawnmanager"].spawnPlayer(options, new Action(async () =>
+			{
+				try
+				{
+					var ped = PlayerPedId();
+
+					// Basic state (do not change model here to avoid wiping weapons/props)
+					if (data.Health > 0) SetEntityHealth(ped, data.Health);
+					if (data.Armor > 0) SetPedArmour(ped, data.Armor);
+
+					// Signal a single player spawn event
+					// - PedManager listens and applies appearence(no model swap here)
+					// - Armory listens and loads weapons
+					TriggerEvent("PlayerCore:Client:PostSpawned", ped, data.X, data.Y, data.Z, data.Heading, data.PedModel);
+
+					// Server can track spawns if needed
+					TriggerServerEvent("PlayerCore:Server:OnSpawned");
+
+					Debug.WriteLine($"[PlayerCore] Spawned at X={data.X:F2}, Y={data.Y:F2}, Z={data.Z:F2}, Heading={data.Heading:F2}");
+				}
+				catch (Exception ex)
+				{
+					Debug.WriteLine($"[PlayerCore] Error in post-spawn actions: {ex}");
+				}
+			}));
+
+			await Task.FromResult(0);
+		}
+
+		// Death handling : keep notify server, spawnmanager will auto-respawn using callback
 		private void OnPlayerDied(int killerId, dynamic deathData)
 		{
-			Debug.WriteLine("[PlayerCore] Player died, removing weapons");
+			Debug.WriteLine("[PlayerCore] Player died, notifying server.");
 			TriggerServerEvent("PlayerCore:Server:PlayerDied");
 		}
 
-		// Receives spawn position from server after loading player data from DB or default
-		private async void OnSetSpawnPosition(float x, float y, float z, float heading)
-		{
-			_spawnX = x;
-			_spawnY = y;
-			_spawnZ = z;
-			_spawnHeading = heading;
-			_hasSpawnPosition = true;
-
-			Debug.WriteLine($"[PlayerCore] Received spawn position: X={x:F2}, Y={y:F2}, Z={z:F2}, Heading={heading:F2}");
-
-			// If player already spawned, apply position immediately
-			if (_sent)
-			{
-				await ApplySpawnPosition();
-			}
-		}
-
-		// Applies spawn position to player
-		private async Task ApplySpawnPosition()
-		{
-			var playerPed = PlayerPedId();
-
-			while (!DoesEntityExist(playerPed))
-			{
-				await Delay(100);
-				playerPed = PlayerPedId();
-			}
-
-			SetEntityCoords(playerPed, _spawnX, _spawnY, _spawnZ, false, false, false, true);
-			SetEntityHeading(playerPed, _spawnHeading);
-
-			Debug.WriteLine($"[PlayerCore] Applied spawn position: X={_spawnX:F2}, Y={_spawnY:F2}, Z={_spawnZ:F2}, Heading={_spawnHeading:F2}");
-		}
-
-		// Periodically saves the player's position to the server
 		private async Task AutoSavePositionTick()
 		{
 			await Delay(AutoSaveInterval);
 
 			// Only save if player is spawned and session is active
-			if (!_sent || !NetworkIsSessionActive())
+			if (!NetworkIsSessionActive())
 			{
 				return;
 			}

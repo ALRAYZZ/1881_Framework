@@ -23,7 +23,7 @@ namespace PedManager.Server
 			// USAGE: /setped [playerId] [modelName] POTENTIAL REFACTOR TO A COMMAND HANDLER WHEN WE GROW
 			RegisterCommand("setped", new Action<int, List<object>, string>(OnSetPedCommand), true);
 
-            // Back-compat: PlayerCore can tell PedManager to apply a specific ped (no persist)
+            // PlayerCore can tell PedManager to apply a specific ped (no persist)
             EventHandlers["PedManager:Server:ApplyPed"] += new Action<string, string>((serverId, model) =>
             {
                 var player = Players.FirstOrDefault(p => p.Handle == serverId);
@@ -37,7 +37,7 @@ namespace PedManager.Server
                 Debug.WriteLine($"[PedManager] Applied ped '{model}' for {serverId} (from PlayerCore).");
             });
 
-            // Preferred: PlayerCore requests PedManager to resolve+apply from DB
+            // PlayerCore requests PedManager to resolve+apply from DB
             EventHandlers["PedManager:Server:ApplyInitialPed"] += new Action<string>((serverId) =>
             {
                 var player = Players.FirstOrDefault(p => p.Handle == serverId);
@@ -85,6 +85,20 @@ namespace PedManager.Server
                     Debug.WriteLine($"[PedManager] Player {src} not found when trying to open ped menu.");
                 }
             });
+
+            EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerCoreSpawned);
+        }
+
+        private void OnPlayerCoreSpawned([FromSource] Player player)
+        {
+            if (player == null)
+            {
+                Debug.WriteLine("[PedManager] OnPlayerCoreSpawned: player is null.");
+                return;
+            }
+
+            Debug.WriteLine($"[PedManager] OnPlayerCoreSpawned triggered by {player.Name} ({player.Handle}).");
+            _pedService.ApplyInitialPedFor(player);
         }
 
         private void OnSetPedCommand(int src, List<object> args, string raw)

@@ -11,3 +11,4 @@ version '1.0.0'
 description 'PedManager C# helper for FiveM'
 
 dependency 'Database'
+dependency 'spawnmanager'

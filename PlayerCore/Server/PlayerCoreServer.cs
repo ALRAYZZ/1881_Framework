@@ -28,7 +28,9 @@ namespace PlayerCore.Server
 			EventHandlers["PlayerCore:Server:PlayerReady"] += new Action<Player>(OnPlayerReady);
 			EventHandlers["PlayerCore:Server:SavePosition"] += new Action<Player, float, float, float, float>(OnSavePosition);
 			EventHandlers["PlayerCore:Server:RequestDisconnect"] += new Action<Player>(OnRequestDisconnect);
-			EventHandlers["PlayerCore:Server:PlayerDied"] += new Action<Player>(OnPlayerDied);
+
+			// Respond to spawn data requests from PlayerCore client
+			EventHandlers["PlayerCore:Server:RequestSpawnData"] += new Action<Player>(OnRequestSpawnData);
 		}
 
 		// Receives player ready event from client
@@ -42,24 +44,11 @@ namespace PlayerCore.Server
 				// Calls the method to load player data from database
 				LoadPlayerData(player, () =>
 				{
-					// Calls PedManager to apply initial ped model on spawn
-					TriggerEvent("PedManager:Server:ApplyInitialPed", player.Handle);
-					// Load weapons from Armory module
-					TriggerEvent("Armory:Server:LoadWeapons", player.Handle);
 				});
 			});
 		}
 
-		// Handles player death event
-		private void OnPlayerDied([FromSource] Player player)
-		{
-			if (player == null) return;
-			Debug.WriteLine($"[PlayerCore] Player {player.Name} died;");
-			TriggerEvent("Armory:Server:RemoveAllWeapons", player.Handle);
-		}
-
 		// Loads player data from database and applies to player state
-		// Calls Client event to set spawn position after DB query loaded
 		private void LoadPlayerData(Player player, Action onLoaded)
 		{
 			// Gets player identifier (license2 preferred)
@@ -80,10 +69,6 @@ namespace PlayerCore.Server
 				{
 					int money = DefaultStartingMoney;
 					string job = DefaultStartingJob;
-					float posX = DefaultSpawnX;
-					float posY = DefaultSpawnY;
-					float posZ = DefaultSpawnZ;
-					float heading = DefaultSpawnHeading;
 
 					if (rows != null)
 					{
@@ -106,8 +91,60 @@ namespace PlayerCore.Server
 							dynamic row = firstRow;
 							if (row.money != null) money = Convert.ToInt32(row.money);
 							if (row.job != null) job = Convert.ToString(row.job);
+						}
+					}
 
-							// Load position if valid
+					player.State.Set("money", money, true);
+					player.State.Set("job", job, true);
+
+					Debug.WriteLine($"[PlayerCore] Loaded data for player '{player.Name}' ({identifier}): Money={money}, Job={job}");
+					onLoaded?.Invoke();
+				}));
+		}
+
+		// Provide spawn position/model to the client when requested by spawnmanager callback
+		private void OnRequestSpawnData([FromSource] Player player)
+		{
+			if (player == null) return;
+
+			var identifier = GetStableIdentifier(player);
+			if (string.IsNullOrWhiteSpace(identifier))
+			{
+				Debug.WriteLine("[PlayerCore] OnRequestSpawnData: missing identifier, sending defaults.");
+				TriggerClientEvent(player, "PlayerCore:Client:ReceiveSpawnData",
+					DefaultSpawnX, DefaultSpawnY, DefaultSpawnZ, DefaultSpawnHeading,
+					"mp_m_freemode_01", 200, 0);
+				return;
+			}
+
+			var parameters = new Dictionary<string, object> { { "@identifier", identifier } };
+
+			_db.Query(
+				"SELECT pos_x, pos_y, pos_z, heading FROM players WHERE identifier = @identifier LIMIT 1",
+				parameters,
+				new Action<dynamic>(rows =>
+				{
+					float posX = DefaultSpawnX;
+					float posY = DefaultSpawnY;
+					float posZ = DefaultSpawnZ;
+					float heading = DefaultSpawnHeading;
+
+					if (rows != null)
+					{
+						dynamic firstRow = null;
+						if (rows is System.Collections.IEnumerable enumerable)
+						{
+							var enumerator = enumerable.GetEnumerator();
+							if (enumerator.MoveNext()) firstRow = enumerator.Current;
+						}
+						else
+						{
+							firstRow = rows;
+						}
+
+						if (firstRow != null)
+						{
+							dynamic row = firstRow;
 							if (row.pos_x != null) posX = Convert.ToSingle(row.pos_x);
 							if (row.pos_y != null) posY = Convert.ToSingle(row.pos_y);
 							if (row.pos_z != null) posZ = Convert.ToSingle(row.pos_z);
@@ -115,20 +152,20 @@ namespace PlayerCore.Server
 						}
 					}
 
-					player.State.Set("money", money, true);
-					player.State.Set("job", job, true);
+					// Decide the ped model if you have character data; defaulting to freemode male for now.
+					string pedModel = "mp_m_freemode_01";
+					int health = 200;
+					int armor = 0;
 
-					// Send spawn position to client after data from DB is loaded
-					TriggerClientEvent(player, "PlayerCore:Client:SetSpawnPosition", posX, posY, posZ, heading);
+					TriggerClientEvent(player, "PlayerCore:Client:ReceiveSpawnData",
+						posX, posY, posZ, heading, pedModel, health, armor);
 
-					Debug.WriteLine($"[PlayerCore] Loaded data for player '{player.Name}' ({identifier}): Money={money}, Job={job}," +
-						$"Position=({posX:F2}, {posY:F2}, {posZ:F2}");
-					onLoaded?.Invoke();
-				}));
+					Debug.WriteLine($"[PlayerCore] Sent spawn data to {player.Name}: X={posX:F2}, Y={posY:F2}, Z={posZ:F2}, H={heading:F2}, Model={pedModel}");
+				})
+			);
 		}
 
 		// Saves player position to database (Execute UPDATE query)
-		// Called by client event periodically and on specific events
 		private void OnSavePosition([FromSource] Player player, float x, float y, float z, float heading)
 		{
 			if (player == null) return;
@@ -159,11 +196,8 @@ namespace PlayerCore.Server
 			);
 		}
 
-
-
 		//** HELPER METHODS **//
 
-		// Ensures the player is registered in the database; if not, creates a new record
 		private void EnsurePlayerRegistered(Player player, Action onDone)
 		{
 			var identifier = GetStableIdentifier(player);
@@ -202,6 +236,7 @@ namespace PlayerCore.Server
 				})
 			);
 		}
+
 		// Gets the most stable identifier available for a player
 		private static string GetStableIdentifier(Player player)
 		{

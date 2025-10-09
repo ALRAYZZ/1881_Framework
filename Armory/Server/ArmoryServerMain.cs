@@ -43,14 +43,16 @@ namespace armory.Server
 			EventHandlers["Armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
 			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
-			// Load weapons when PlayerCore signals the player is ready (similar to PedManager pattern)
+			// Armory API events 
 			EventHandlers["Armory:Server:LoadWeapons"] += new Action<string>(OnLoadWeapons);
-
-			// Reload weapons after ped change (SetPlayerModel removes all weapons)
 			EventHandlers["Armory:Server:ReloadWeapons"] += new Action<Player>(OnReloadWeapons);
-
-			// Listen to remove all weapons event (e.g. on player death)
 			EventHandlers["Armory:Server:RemoveAllWeapons"] += new Action<string>(OnRemoveAllWeapons);
+
+			// PlayerCore fires OnSpawned after spawnmanager finishes
+			EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerCoreSpawned);
+
+			// Clear weapons on death
+			EventHandlers["PlayerCore:Server:PlayerDied"] += new Action<Player>(OnPlayerCorePlayerDied);
 
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
 		}
@@ -80,6 +82,31 @@ namespace armory.Server
 
 			_weaponService.RemoveAllWeapons(player);
 			Debug.WriteLine($"[Armory|Server] Removed all weapons from {player.Name}");
+		}
+
+		// Realods weapons (from DB) after any spawn mananged by PlayerCore
+		private void OnPlayerCoreSpawned([FromSource] Player player)
+		{
+			if (player == null)
+			{
+				Debug.WriteLine("[Armory|Server] OnPlayerCoreSpawned: player is null!");
+				return;
+			}
+			Debug.WriteLine($"[Armory|Server] OnPlayerCoreSpawned triggered by {player.Name} ({player.Handle})");
+			_weaponService.LoadWeaponsForPlayer(player);
+			Debug.WriteLine($"[Armory|Server] Loaded weapons for {player.Name} after spawn");
+		}
+
+		// Clear weapons on death
+		private void OnPlayerCorePlayerDied([FromSource] Player player)
+		{
+			if (player == null)
+			{
+				Debug.WriteLine("[Armory|Server] OnPlayerCorePlayerDied: player is null!");
+				return;
+			}
+			_weaponService.RemoveAllWeapons(player);
+			Debug.WriteLine($"[Armory|Server] Removed all weapons from {player.Name} after death");
 		}
 
 		/// Reloads weapons after a ped model change (called by PedManager client).

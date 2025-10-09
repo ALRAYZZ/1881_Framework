@@ -24,13 +24,13 @@ namespace PedManager.Server
                 "g_m_m_chiboss_01",
                 "g_m_m_chicold_01",
                 "a_m_m_skater_01",
-		        "s_m_m_ciasec_01",
-		        "mp_m_freemode_01"
-			};
-		}
+                "s_m_m_ciasec_01",
+                "mp_m_freemode_01"
+            };
+        }
 
-		// Gets the identifier from player on login; prefers license2, then license, then first available
-		private static string GetStableIdentifier(Player player)
+        // Gets the identifier from player on login; prefers license2, then license, then first available
+        private static string GetStableIdentifier(Player player)
         {
             if (player == null) return null;
 
@@ -57,7 +57,16 @@ namespace PedManager.Server
         {
             if (target == null || string.IsNullOrWhiteSpace(modelName)) return;
 
-            target.TriggerEvent("PedManager:Client:SetPed", modelName);
+            // Whitelist: only allow known baked models to avoid invisible peds
+            var allowed = GetAllAvailablePeds();
+            var resolved = allowed.FirstOrDefault(m => string.Equals(m, modelName, StringComparison.OrdinalIgnoreCase));
+            if (resolved == null)
+            {
+                Debug.WriteLine($"[PedManager] '{modelName}' not in allowed ped list. Falling back to default.");
+                resolved = allowed[0]; // default fallback
+            }
+
+            target.TriggerEvent("PedManager:Client:SetPed", resolved);
 
             if (!persist) return; // don't save during login apply
 
@@ -72,7 +81,7 @@ namespace PedManager.Server
             {
                 { "@identifier", identifier },
                 { "@outfit_name", "default" },
-                { "@ped_model", modelName },
+                { "@ped_model", resolved },
                 { "@outfit_data", "{}" }
             };
 
@@ -146,10 +155,14 @@ namespace PedManager.Server
                     if (pedObj is string s) pedModel = s;
                     else if (pedObj != null) pedModel = pedObj.ToString();
 
-                    var loadedFromDb = !string.IsNullOrWhiteSpace(pedModel);
+                    // Validate against whitelist
+                    var allowed = GetAllAvailablePeds();
+                    var loadedFromDb = !string.IsNullOrWhiteSpace(pedModel) &&
+                                       allowed.Any(m => string.Equals(m, pedModel, StringComparison.OrdinalIgnoreCase));
+
                     if (!loadedFromDb)
                     {
-                        pedModel = "g_m_m_chiboss_01"; // default male
+                        pedModel = allowed[0]; // default baked model
 
                         var insertParams = new Dictionary<string, object>
                         {
@@ -167,7 +180,7 @@ namespace PedManager.Server
                             new Action<dynamic>(_ => { })
                         );
 
-                        Debug.WriteLine($"[PedManager] No stored ped found. Persisted default for {idPriority[0]}.");
+                        Debug.WriteLine($"[PedManager] No valid stored ped found. Persisted default for {idPriority[0]}.");
                     }
 
                     // Apply without persisting again
