@@ -1,15 +1,30 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
       <TargetFramework>netstandard2.0</TargetFramework>
       <DebugType>portable</DebugType>
       <TargetName>$(AssemblyName).net</TargetName>
       <DefineConstants>SERVER</DefineConstants>
     </PropertyGroup>
-  
-    <ItemGroup>
+
+	<ItemGroup>
+		<Content Include="../Data/**/*.*">
+			<Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+
+	<ItemGroup>
       <PackageReference Include="CitizenFX.Core.Server" Version="1.0.*" />
 		<PackageReference Include="Microsoft.CSharp" Version ="4.7.0" />
 		<Compile Include="../Shared/**/*.cs" />
     </ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="Newtonsoft.Json">
+			<HintPath>..\libs\Newtonsoft.Json.dll</HintPath>
+			<Private>True</Private>
+		</Reference>
+	</ItemGroup>
 </Project>
   

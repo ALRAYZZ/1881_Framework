@@ -3,7 +3,11 @@ game 'gta5'
 
 file 'Client/bin/Release/**/publish/*.dll'
 
-client_script 'Client/bin/Release/**/publish/*.net.dll'
+files { 'Server/bin/Release/netstandard2.0/publish/Data/peds.json' }
+
+client_script { 'Client/bin/Release/**/publish/*.net.dll',
+                'Server/bin/Release/netstandard2.0/publish/Newtonsoft.Json.dll' }
+
 server_script 'Server/bin/Release/**/publish/*.net.dll'
 
 author 'ALRAYZZ'
