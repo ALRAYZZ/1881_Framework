@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using CitizenFX.Core;
 using static CitizenFX.Core.Native.API;
 
@@ -256,9 +257,21 @@ namespace PlayerCore.Server
 			return license ?? fallback;
 		}
 
-		private void OnRequestDisconnect([FromSource] Player player)
+		private async void OnRequestDisconnect([FromSource] Player player)
 		{
 			if (player == null) return;
+
+			try
+			{
+				// Tell Armory module to save weapons on DB
+				TriggerEvent("Armory:Server:PersistWeaponsNow", player.Handle);
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine($"[PlayerCore] Error while saving weapons for player {player.Name}: {ex.Message}");
+			}
+
+			await Delay(250);
 			
 			Debug.WriteLine($"[PlayerCore] Player {player.Name} manually logged out.");
 			player.Drop("Logged out successfully.");

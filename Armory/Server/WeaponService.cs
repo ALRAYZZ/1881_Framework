@@ -40,6 +40,39 @@ namespace armory.Server
 			}
 		}
 
+
+		// Public API: persist the current tracked weapon set for player
+		// Note: Ammo/components/tint not tracked currently EXTEND LATER
+		public void SaveWeaponsForPlayer(Player player)
+		{
+			if (!IsPlayerConnected(player, out var notConnectedReason))
+			{
+				Debug.WriteLine($"[Armory|Server] SaveWeaponsForPlayer failed: {notConnectedReason}");
+				return;
+			}
+
+			try
+			{
+				var weapons = _weaponTracker.GetCurrentWeapons(player) ?? new HashSet<string>();
+				// Clear, then re-add all to DB
+				RemoveAllWeaponsFromDatabase(player);
+
+				foreach (var weapon in weapons)
+				{
+					// Persist with 0 ammo and components null for now
+					PersistWeaponToDatabase(player, weapon, ammo:0, components:null, grantedBy:"logout");
+				}
+
+				Debug.WriteLine($"[Armory] Saved {weapons.Count} weapon(s) for {player.Name}");
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine($"[Armory] Error saving weapons for {player.Name}: {ex.Message}");
+			}
+		}
+
+
+
 		public void GiveWeapon(Player player, string weapon, List<string> components = null, int tintIndex = -1)
 		{
 			if (!IsPlayerConnected(player, out var reason))

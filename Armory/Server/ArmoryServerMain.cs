@@ -39,7 +39,10 @@ namespace armory.Server
 			_commands = new CommandHandler(_weaponService, _pickupService, Players, messenger);
 
 			_commands.RegisterCommands();
-			EventHandlers["playerDropped"] += new Action<Player, string>(_playerWeaponTracker.OnPlayerDropped);
+
+			// Handle player drop robustly and persist weapons
+			EventHandlers["playerDropped"] += new Action<Player, string>(OnPlayerDropped);
+
 			EventHandlers["Armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
 			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
@@ -47,6 +50,9 @@ namespace armory.Server
 			EventHandlers["Armory:Server:LoadWeapons"] += new Action<string>(OnLoadWeapons);
 			EventHandlers["Armory:Server:ReloadWeapons"] += new Action<Player>(OnReloadWeapons);
 			EventHandlers["Armory:Server:RemoveAllWeapons"] += new Action<string>(OnRemoveAllWeapons);
+
+			// Allow PlayerCore (or others) to request a persistence snapshot pre-drop
+			EventHandlers["Armory:Server:PersistWeaponsNow"] += new Action<string>(OnPersistWeaponsNow);
 
 			// PlayerCore fires OnSpawned after spawnmanager finishes
 			EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerCoreSpawned);
@@ -82,6 +88,27 @@ namespace armory.Server
 
 			_weaponService.RemoveAllWeapons(player);
 			Debug.WriteLine($"[Armory|Server] Removed all weapons from {player.Name}");
+		}
+
+		// Allow an explicit persist request (e.g., before Drop)
+		private void OnPersistWeaponsNow(string serverId)
+		{
+			try
+			{
+				var player = Players.FirstOrDefault(p => p.Handle == serverId);
+				if (player == null)
+				{
+					Debug.WriteLine($"[Armory|Server] PersistWeaponsNow: player '{serverId}' not found.");
+					return;
+				}
+
+				_weaponService.SaveWeaponsForPlayer(player);
+				Debug.WriteLine($"[Armory|Server] Persisted weapons for {player.Name} (explicit request)");
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine($"[Armory|Server] PersistWeaponsNow error: {ex}");
+			}
 		}
 
 		// Realods weapons (from DB) after any spawn mananged by PlayerCore
@@ -151,6 +178,32 @@ namespace armory.Server
 				{
 					Debug.WriteLine($"[Armory|Server] Invalid weapon name selected: '{name}'");
 				}
+			}
+		}
+
+		// Handles native drop event; persists and clears tracker with full safety.
+		private void OnPlayerDropped([FromSource] Player player, string reason)
+		{
+			try
+			{
+				if (player == null)
+				{
+					Debug.WriteLine("[Armory|Server] playerDropped: player is null!");
+					return;
+				}
+
+				// Persist current weapons snapshot (best-effort)
+				_weaponService.SaveWeaponsForPlayer(player);
+
+				// Always clear tracker to avoid leaks
+				_playerWeaponTracker.OnPlayerDropped(player, reason);
+
+				Debug.WriteLine($"[Armory|Server] playerDropped handled for {player.Name} ({player.Handle}). Reason: {reason}");
+			}
+			catch (Exception ex)
+			{
+				// Prevent the event pipeline from throwing
+				Debug.WriteLine($"[Armory|Server] Error in playerDropped handler: {ex}");
 			}
 		}
 	}

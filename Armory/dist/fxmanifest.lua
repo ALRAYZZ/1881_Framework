@@ -9,3 +9,4 @@ version '1.0.0'
 description 'Tools to spawn and give and spawn weapons'
 
 dependency 'Database'
+dependency 'spawnmanager'
