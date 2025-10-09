@@ -20,10 +20,8 @@ namespace PedManager.Server
 
             Debug.WriteLine("[PedManager] Server initialized.");
 
-			// USAGE: /setped [playerId] [modelName] POTENTIAL REFACTOR TO A COMMAND HANDLER WHEN WE GROW
-			RegisterCommand("setped", new Action<int, List<object>, string>(OnSetPedCommand), true);
+            RegisterCommand("setped", new Action<int, List<object>, string>(OnSetPedCommand), true);
 
-            // PlayerCore can tell PedManager to apply a specific ped (no persist)
             EventHandlers["PedManager:Server:ApplyPed"] += new Action<string, string>((serverId, model) =>
             {
                 var player = Players.FirstOrDefault(p => p.Handle == serverId);
@@ -33,11 +31,10 @@ namespace PedManager.Server
                     return;
                 }
 
-                _pedService.SetPedFor(player, model, false); // apply only
+                _pedService.SetPedFor(player, model, false);
                 Debug.WriteLine($"[PedManager] Applied ped '{model}' for {serverId} (from PlayerCore).");
             });
 
-            // PlayerCore requests PedManager to resolve+apply from DB
             EventHandlers["PedManager:Server:ApplyInitialPed"] += new Action<string>((serverId) =>
             {
                 var player = Players.FirstOrDefault(p => p.Handle == serverId);
@@ -50,8 +47,7 @@ namespace PedManager.Server
                 _pedService.ApplyInitialPedFor(player);
             });
 
-			// Sets and persists a ped for a player, then notifies client to apply immediately
-			EventHandlers["PedManager:Server:SetPed"] += new Action<string, string>((serverId, model) =>
+            EventHandlers["PedManager:Server:SetPed"] += new Action<string, string>((serverId, model) =>
             {
                 var player = Players.FirstOrDefault(p => p.Handle == serverId);
                 if (player == null)
@@ -60,24 +56,21 @@ namespace PedManager.Server
                     return;
                 }
 
-				// Set and persist
-				_pedService.SetPedFor(player, model);
+                _pedService.SetPedFor(player, model);
                 Debug.WriteLine($"[PedManager] Set ped '{model}' for {serverId} (from event).");
 
-				// Notify client to apply immediately
-				player.TriggerEvent("PedManager:Client:ApplyPedNow", model);
+                player.TriggerEvent("PedManager:Client:ApplyPedNow", model);
             });
 
             EventHandlers["PedManager:Server:OpenPedMenu"] += new Action<int>((src) =>
             {
                 Debug.WriteLine($"[PedManager] Opening ped menu for {src}");
                 var peds = _pedService.GetAllAvailablePeds();
-				Debug.WriteLine($"[PedManager] Retrieved {peds?.Count ?? 0} peds from service");
-				var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
+                Debug.WriteLine($"[PedManager] Retrieved {peds?.Count ?? 0} peds from service");
+                var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
                 if (player != null)
                 {
                     Debug.WriteLine($"[PedManager] Sending ped list to player {src}");
-                    // Send ped list to the client UI
                     player.TriggerEvent("UI:OpenPedMenu", peds.Cast<object>().ToList());
                 }
                 else
@@ -86,6 +79,7 @@ namespace PedManager.Server
                 }
             });
 
+            // If PlayerCore already spawned with the correct model (from state), skip re-applying to avoid double swap
             EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerCoreSpawned);
         }
 
@@ -97,7 +91,18 @@ namespace PedManager.Server
                 return;
             }
 
-            Debug.WriteLine($"[PedManager] OnPlayerCoreSpawned triggered by {player.Name} ({player.Handle}).");
+            try
+            {
+                var existing = player.State.Get("pedModel") as string;
+                if (!string.IsNullOrWhiteSpace(existing))
+                {
+                    Debug.WriteLine($"[PedManager] OnSpawned: ped model already known ('{existing}'), skipping re-apply.");
+                    return;
+                }
+            }
+            catch { /* ignore */ }
+
+            Debug.WriteLine($"[PedManager] OnPlayerCoreSpawned: resolving/applying initial ped for {player.Name} ({player.Handle}).");
             _pedService.ApplyInitialPedFor(player);
         }
 

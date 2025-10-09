@@ -11,15 +11,24 @@ namespace PlayerCore.Server
 	{
 		private readonly dynamic _db;
 
-		// Defaults for new players; adjust as needed
 		private const int DefaultStartingMoney = 0;
 		private const string DefaultStartingJob = "unemployed";
+
+		private const string DefaultPedModel = "mp_m_freemode_01";
+
+		// Hospital respawn cords
+		private const float HospitalSpawnX = 307.43f;
+		private const float HospitalSpawnY = -1433.14f;
+		private const float HospitalSpawnZ = 29.97f;
+		private const float HospitalSpawnHeading = 320.0f;
 
 		// Default player cords when no data in database
 		private const float DefaultSpawnX = -1037.58f;
 		private const float DefaultSpawnY = -2738.58f;
 		private const float DefaultSpawnZ = 20.1693f;
 		private const float DefaultSpawnHeading = 329.94f;
+
+		private readonly HashSet<string> _forceHospitalRespawn = new HashSet<string>();
 
 		public PlayerCoreServer()
 		{
@@ -32,27 +41,32 @@ namespace PlayerCore.Server
 
 			// Respond to spawn data requests from PlayerCore client
 			EventHandlers["PlayerCore:Server:RequestSpawnData"] += new Action<Player>(OnRequestSpawnData);
+
+			// Mark next spawn to hospital on player death
+			EventHandlers["PlayerCore:Server:PlayerDied"] += new Action<Player>(OnPlayerDied);
+
+			// Note: no "SetPedModel" handling here; PedManager owns ped model updates
 		}
 
-		// Receives player ready event from client
-		// We need [FromSource] when clients trigger server events and we need the player object else player is null
 		private void OnPlayerReady([FromSource] Player player)
 		{
 			if (player == null) return;
 
 			EnsurePlayerRegistered(player, () =>
 			{
-				// Calls the method to load player data from database
-				LoadPlayerData(player, () =>
-				{
-				});
+				LoadPlayerData(player, () => { });
 			});
 		}
 
-		// Loads player data from database and applies to player state
+		private void OnPlayerDied([FromSource] Player player)
+		{
+			if (player == null) return;
+			_forceHospitalRespawn.Add(player.Handle);
+			Debug.WriteLine($"[PlayerCore] Player {player.Name} died; next spawn will be at hospital.");
+		}
+
 		private void LoadPlayerData(Player player, Action onLoaded)
 		{
-			// Gets player identifier (license2 preferred)
 			var identifier = GetStableIdentifier(player);
 			if (string.IsNullOrWhiteSpace(identifier))
 			{
@@ -84,7 +98,7 @@ namespace PlayerCore.Server
 						}
 						else
 						{
-							firstRow = rows; // Fallback if single object
+							firstRow = rows;
 						}
 
 						if (firstRow != null)
@@ -103,10 +117,34 @@ namespace PlayerCore.Server
 				}));
 		}
 
-		// Provide spawn position/model to the client when requested by spawnmanager callback
+		private static string GetPreferredPedModel(Player player)
+		{
+			try
+			{
+				var m = player?.State?.Get("pedModel") as string;
+				if (!string.IsNullOrWhiteSpace(m)) return m;
+			}
+			catch { }
+			return DefaultPedModel;
+		}
+
 		private void OnRequestSpawnData([FromSource] Player player)
 		{
 			if (player == null) return;
+
+			var pedModel = GetPreferredPedModel(player);
+			int health = 200;
+			int armor = 0;
+
+			if (_forceHospitalRespawn.Remove(player.Handle))
+			{
+				TriggerClientEvent(player, "PlayerCore:Client:ReceiveSpawnData",
+					HospitalSpawnX, HospitalSpawnY, HospitalSpawnZ, HospitalSpawnHeading,
+					pedModel, health, armor);
+
+				Debug.WriteLine($"[PlayerCore] OnRequestSpawnData: forced hospital respawn for {player.Name} with ped '{pedModel}'.");
+				return;
+			}
 
 			var identifier = GetStableIdentifier(player);
 			if (string.IsNullOrWhiteSpace(identifier))
@@ -114,7 +152,7 @@ namespace PlayerCore.Server
 				Debug.WriteLine("[PlayerCore] OnRequestSpawnData: missing identifier, sending defaults.");
 				TriggerClientEvent(player, "PlayerCore:Client:ReceiveSpawnData",
 					DefaultSpawnX, DefaultSpawnY, DefaultSpawnZ, DefaultSpawnHeading,
-					"mp_m_freemode_01", 200, 0);
+					pedModel, health, armor);
 				return;
 			}
 
@@ -153,11 +191,6 @@ namespace PlayerCore.Server
 						}
 					}
 
-					// Decide the ped model if you have character data; defaulting to freemode male for now.
-					string pedModel = "mp_m_freemode_01";
-					int health = 200;
-					int armor = 0;
-
 					TriggerClientEvent(player, "PlayerCore:Client:ReceiveSpawnData",
 						posX, posY, posZ, heading, pedModel, health, armor);
 
@@ -166,7 +199,6 @@ namespace PlayerCore.Server
 			);
 		}
 
-		// Saves player position to database (Execute UPDATE query)
 		private void OnSavePosition([FromSource] Player player, float x, float y, float z, float heading)
 		{
 			if (player == null) return;
@@ -196,8 +228,6 @@ namespace PlayerCore.Server
 				})
 			);
 		}
-
-		//** HELPER METHODS **//
 
 		private void EnsurePlayerRegistered(Player player, Action onDone)
 		{
@@ -238,7 +268,6 @@ namespace PlayerCore.Server
 			);
 		}
 
-		// Gets the most stable identifier available for a player
 		private static string GetStableIdentifier(Player player)
 		{
 			if (player == null) return null;
@@ -263,7 +292,6 @@ namespace PlayerCore.Server
 
 			try
 			{
-				// Tell Armory module to save weapons on DB
 				TriggerEvent("Armory:Server:PersistWeaponsNow", player.Handle);
 			}
 			catch (Exception ex)
@@ -272,7 +300,7 @@ namespace PlayerCore.Server
 			}
 
 			await Delay(250);
-			
+
 			Debug.WriteLine($"[PlayerCore] Player {player.Name} manually logged out.");
 			player.Drop("Logged out successfully.");
 		}

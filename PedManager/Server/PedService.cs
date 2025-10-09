@@ -18,7 +18,6 @@ namespace PedManager.Server
 
         public List<string> GetAllAvailablePeds()
         {
-            // This can be loaded from a config or DB in a more complex implementation
             return new List<string>
             {
                 "g_m_m_chiboss_01",
@@ -29,7 +28,6 @@ namespace PedManager.Server
             };
         }
 
-        // Gets the identifier from player on login; prefers license2, then license, then first available
         private static string GetStableIdentifier(Player player)
         {
             if (player == null) return null;
@@ -57,18 +55,21 @@ namespace PedManager.Server
         {
             if (target == null || string.IsNullOrWhiteSpace(modelName)) return;
 
-            // Whitelist: only allow known baked models to avoid invisible peds
             var allowed = GetAllAvailablePeds();
             var resolved = allowed.FirstOrDefault(m => string.Equals(m, modelName, StringComparison.OrdinalIgnoreCase));
             if (resolved == null)
             {
                 Debug.WriteLine($"[PedManager] '{modelName}' not in allowed ped list. Falling back to default.");
-                resolved = allowed[0]; // default fallback
+                resolved = allowed[0];
             }
 
+            // Update server-side state so other systems (PlayerCore) can read it for spawn
+            try { target.State.Set("pedModel", resolved, true); } catch { /* ignore */ }
+
+            // Apply on client
             target.TriggerEvent("PedManager:Client:SetPed", resolved);
 
-            if (!persist) return; // don't save during login apply
+            if (!persist) return;
 
             var identifier = GetStableIdentifier(target);
             if (string.IsNullOrWhiteSpace(identifier))
@@ -97,7 +98,7 @@ namespace PedManager.Server
             );
         }
 
-        // Load ped from DB (by prioritized identifiers) or persist a default, then apply without persisting again.
+        // Load ped from DB or persist a default, then apply without persisting again.
         public void ApplyInitialPedFor(Player player)
         {
             if (player == null) return;
@@ -109,7 +110,6 @@ namespace PedManager.Server
                 return;
             }
 
-            // Collect identifiers in priority order
             string license = null, license2 = null, steam = null, discord = null, fivem = null;
             var count = GetNumPlayerIdentifiers(player.Handle);
             for (int i = 0; i < count; i++)
@@ -155,18 +155,17 @@ namespace PedManager.Server
                     if (pedObj is string s) pedModel = s;
                     else if (pedObj != null) pedModel = pedObj.ToString();
 
-                    // Validate against whitelist
                     var allowed = GetAllAvailablePeds();
                     var loadedFromDb = !string.IsNullOrWhiteSpace(pedModel) &&
                                        allowed.Any(m => string.Equals(m, pedModel, StringComparison.OrdinalIgnoreCase));
 
                     if (!loadedFromDb)
                     {
-                        pedModel = allowed[0]; // default baked model
+                        pedModel = allowed[0];
 
                         var insertParams = new Dictionary<string, object>
                         {
-                            { "@identifier", idPriority[0] },  // Use primary (license2 if present)
+                            { "@identifier", idPriority[0] },
                             { "@outfit_name", outfitName },
                             { "@ped_model", pedModel },
                             { "@outfit_data", "{}" }
@@ -183,7 +182,10 @@ namespace PedManager.Server
                         Debug.WriteLine($"[PedManager] No valid stored ped found. Persisted default for {idPriority[0]}.");
                     }
 
-                    // Apply without persisting again
+                    // Ensure state is set so PlayerCore can read it for spawn
+                    try { player.State.Set("pedModel", pedModel, true); } catch { /* ignore */ }
+
+                    // Apply without re-persisting
                     SetPedFor(player, pedModel, false);
                     Debug.WriteLine($"[PedManager] {(loadedFromDb ? "Loaded" : "Applied default")} ped '{pedModel}' for {stableId} ({player.Handle})");
                 })
