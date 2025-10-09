@@ -9,7 +9,7 @@ namespace armory.Server
 {
     /// Server entry point. Wires services and registers events/commands.
     /// Uses a parameterless constructor for FiveM and an internal DI-friendly constructor for tests.
-    public class ServerMain : BaseScript
+    public class ArmoryServerMain : BaseScript
 	{
 		private readonly WeaponService _weaponService;
 		private readonly PickupService _pickupService;
@@ -17,7 +17,7 @@ namespace armory.Server
 		private readonly CommandHandler _commands;
 
 		/// FiveM entrypoint. Composes concrete dependencies.
-		public ServerMain() : this(
+		public ArmoryServerMain() : this(
 			weaponService: null,
 			pickupService: null,
 			playerWeaponTracker: null,
@@ -26,7 +26,7 @@ namespace armory.Server
 		}
 
 		/// DI-friendly entrypoint. Any null dependency will be constructed with defaults.
-		internal ServerMain(WeaponService weaponService, PickupService pickupService, PlayerWeaponTracker playerWeaponTracker, IChatMessenger chat)
+		internal ArmoryServerMain(WeaponService weaponService, PickupService pickupService, PlayerWeaponTracker playerWeaponTracker, IChatMessenger chat)
 		{
 			// Get database connection from global
 			var db = Exports["Database"];
@@ -40,7 +40,7 @@ namespace armory.Server
 
 			_commands.RegisterCommands();
 			EventHandlers["playerDropped"] += new Action<Player, string>(_playerWeaponTracker.OnPlayerDropped);
-			EventHandlers["armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
+			EventHandlers["Armory:TryCollectWeaponPickup"] += new Action<Player, int>(OnTryCollectWeaponPickup);
 			EventHandlers["UI:SelectedItem"] += new Action<Player, string, string>(OnUISelectedItem);
 
 			// Load weapons when PlayerCore signals the player is ready (similar to PedManager pattern)
@@ -48,6 +48,9 @@ namespace armory.Server
 
 			// Reload weapons after ped change (SetPlayerModel removes all weapons)
 			EventHandlers["Armory:Server:ReloadWeapons"] += new Action<Player>(OnReloadWeapons);
+
+			// Listen to remove all weapons event (e.g. on player death)
+			EventHandlers["Armory:Server:RemoveAllWeapons"] += new Action<string>(OnRemoveAllWeapons);
 
 			Debug.WriteLine("[Armory|Server] Armory initialized.");
 		}
@@ -64,6 +67,19 @@ namespace armory.Server
 
 			_weaponService.LoadWeaponsForPlayer(player);
 			Debug.WriteLine($"[Armory|Server] Loaded weapons for {player.Name}");
+		}
+
+		private void OnRemoveAllWeapons(string serverId)
+		{	
+			var player = Players.FirstOrDefault(p => p.Handle == serverId);
+			if (player == null)
+			{
+				Debug.WriteLine($"[Armory|Server] RemoveAllWeapons: player '{serverId}' not found.");
+				return;
+			}
+
+			_weaponService.RemoveAllWeapons(player);
+			Debug.WriteLine($"[Armory|Server] Removed all weapons from {player.Name}");
 		}
 
 		/// Reloads weapons after a ped model change (called by PedManager client).

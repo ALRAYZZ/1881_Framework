@@ -20,7 +20,10 @@ namespace PlayerCore.Client
 			// Native FiveM event when player spawns
 			EventHandlers["playerSpawned"] += new Action<dynamic>(OnPlayerSpawned);
 			EventHandlers["PlayerCore:Client:SetSpawnPosition"] += new Action<float, float, float, float>(OnSetSpawnPosition);
-			
+
+			// Handle player dies
+			EventHandlers["baseevents:onPlayerDied"] += new Action<int, dynamic>(OnPlayerDied);
+
 			// Handle resource stop to save position on logout
 			EventHandlers["onResourceStop"] += new Action<string>(OnResourceStop);
 			
@@ -69,6 +72,13 @@ namespace PlayerCore.Client
 			{
 				await ApplySpawnPosition();
 			}
+		}
+
+		// Triggered when player dies
+		private void OnPlayerDied(int killerId, dynamic deathData)
+		{
+			Debug.WriteLine("[PlayerCore] Player died, removing weapons");
+			TriggerServerEvent("PlayerCore:Server:PlayerDied");
 		}
 
 		// Receives spawn position from server after loading player data from DB or default

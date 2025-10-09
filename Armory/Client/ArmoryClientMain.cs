@@ -10,20 +10,20 @@ using armory.Client.Pickups;
 namespace armory.Client
 {
 	/// Client entry point. Wires client services and logs initialization.
-	public class ClientMain : BaseScript
+	public class ArmoryClientMain : BaseScript
 	{
 		private readonly WeaponServiceClient _weaponService;
 		private readonly PickupServiceClient _pickupService;
 
 		/// FiveM entrypoint. Composes concrete dependencies.
-		public ClientMain() : this(
+		public ArmoryClientMain() : this(
 			weaponService: null,
 			pickupService: null)
 		{
 		}
 
 		/// DI-friendly entrypoint. Any null dependency will be constructed with defaults.
-		internal ClientMain(WeaponServiceClient weaponService, PickupServiceClient pickupService)
+		internal ArmoryClientMain(WeaponServiceClient weaponService, PickupServiceClient pickupService)
 		{
 			Debug.WriteLine("[Armory|Client] Loaded from 1881 Framework.");
 			_weaponService = weaponService ?? new WeaponServiceClient();

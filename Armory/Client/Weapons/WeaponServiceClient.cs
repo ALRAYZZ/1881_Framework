@@ -14,9 +14,9 @@ namespace armory.Client.Weapons
 		/// Registers client event handlers for giving and removing weapons.
 		public WeaponServiceClient()
 		{
-			EventHandlers["armory:ReceiveWeapon"] += new Action<string, dynamic, int>(OnReceiveWeapon);
-			EventHandlers["armory:RemoveWeapon"] += new Action<string>(OnRemoveWeapon);
-			EventHandlers["armory:RemoveAllWeapons"] += new Action(OnRemoveAllWeapons);
+			EventHandlers["Armory:ReceiveWeapon"] += new Action<string, dynamic, int>(OnReceiveWeapon);
+			EventHandlers["Armory:RemoveWeapon"] += new Action<string>(OnRemoveWeapon);
+			EventHandlers["Armory:RemoveAllWeapons"] += new Action(OnRemoveAllWeapons);
 		}
 
 		/// Spawns the specified weapon on the local player with optional components and tint.

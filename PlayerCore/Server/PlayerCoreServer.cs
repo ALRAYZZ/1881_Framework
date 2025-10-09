@@ -28,6 +28,7 @@ namespace PlayerCore.Server
 			EventHandlers["PlayerCore:Server:PlayerReady"] += new Action<Player>(OnPlayerReady);
 			EventHandlers["PlayerCore:Server:SavePosition"] += new Action<Player, float, float, float, float>(OnSavePosition);
 			EventHandlers["PlayerCore:Server:RequestDisconnect"] += new Action<Player>(OnRequestDisconnect);
+			EventHandlers["PlayerCore:Server:PlayerDied"] += new Action<Player>(OnPlayerDied);
 		}
 
 		// Receives player ready event from client
@@ -48,6 +49,15 @@ namespace PlayerCore.Server
 				});
 			});
 		}
+
+		// Handles player death event
+		private void OnPlayerDied([FromSource] Player player)
+		{
+			if (player == null) return;
+			Debug.WriteLine($"[PlayerCore] Player {player.Name} died;");
+			TriggerEvent("Armory:Server:RemoveAllWeapons", player.Handle);
+		}
+
 		// Loads player data from database and applies to player state
 		// Calls Client event to set spawn position after DB query loaded
 		private void LoadPlayerData(Player player, Action onLoaded)

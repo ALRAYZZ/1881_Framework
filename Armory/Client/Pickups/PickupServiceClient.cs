@@ -15,9 +15,9 @@ namespace armory.Client.Pickups
 
 		public PickupServiceClient()
 		{
-			EventHandlers["armory:CreateWeaponPickup"] += new Action<int, string, int, float, float, float>(OnCreateWeaponPickup);
-			EventHandlers["armory:RemoveWeaponPickup"] += new Action<int>(OnRemoveWeaponPickup);
-			EventHandlers["armory:RemoveAllWeaponPickups"] += new Action(OnRemoveAllWeaponPickups);
+			EventHandlers["Armory:CreateWeaponPickup"] += new Action<int, string, int, float, float, float>(OnCreateWeaponPickup);
+			EventHandlers["Armory:RemoveWeaponPickup"] += new Action<int>(OnRemoveWeaponPickup);
+			EventHandlers["Armory:RemoveAllWeaponPickups"] += new Action(OnRemoveAllWeaponPickups);
 			EventHandlers["onResourceStop"] += new Action<string>(OnResourceStop);
 
 			Tick += ProximityTick;
@@ -104,7 +104,7 @@ namespace armory.Client.Pickups
 				{
 					_pendingCollect.Add(pickup.Id);
 					Debug.WriteLine($"[Armory|Client] Attempting to collect pickup id={pickup.Id}, distance={dist}");
-					TriggerServerEvent("armory:TryCollectWeaponPickup", pickup.Id);
+					TriggerServerEvent("Armory:TryCollectWeaponPickup", pickup.Id);
 				}
 			}
 

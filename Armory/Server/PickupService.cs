@@ -41,7 +41,7 @@ namespace armory.Server
 			int id = _nextPickupId++;
 
 			_pickups[id] = new PickupInfo(id, weapon, ammo, pos);
-			BaseScript.TriggerClientEvent("armory:CreateWeaponPickup", id, weapon, ammo, pos.X, pos.Y, pos.Z);
+			BaseScript.TriggerClientEvent("Armory:CreateWeaponPickup", id, weapon, ammo, pos.X, pos.Y, pos.Z);
 			Debug.WriteLine($"[Armory|Server] Created pickup #{id} ({weapon}) at {pos.X}, {pos.Y}, {pos.Z}");
 		}
 
@@ -50,7 +50,7 @@ namespace armory.Server
 			if (_pickups.Count == 0)
 			{
 				Debug.WriteLine("[Armory|Server] No weapon pickups to remove.");
-				BaseScript.TriggerClientEvent("armory:RemoveAllWeaponPickups");
+				BaseScript.TriggerClientEvent("Armory:RemoveAllWeaponPickups");
 				return;
 			}
 
@@ -60,7 +60,7 @@ namespace armory.Server
 			}
 			_pickups.Clear();
 
-			BaseScript.TriggerClientEvent("armory:RemoveAllWeaponPickups");
+			BaseScript.TriggerClientEvent("Armory:RemoveAllWeaponPickups");
 			Debug.WriteLine("[Armory|Server] Removed all weapon pickups.");
 		}
 
@@ -89,7 +89,7 @@ namespace armory.Server
 			p.Collected = true;
 			_pickups.Remove(id);
 
-			BaseScript.TriggerClientEvent("armory:RemoveWeaponPickup", id);
+			BaseScript.TriggerClientEvent("Armory:RemoveWeaponPickup", id);
 			_weaponService.GiveWeapon(player, p.WeaponName);
 
 			Debug.WriteLine($"[Armory|Server] {player.Name} collected pickup #{id} ({p.WeaponName}, ammo={p.Ammo})");

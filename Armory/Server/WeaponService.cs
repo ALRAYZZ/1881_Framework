@@ -49,7 +49,7 @@ namespace armory.Server
 			}
 
 			Debug.WriteLine($"[Armory|Server] GiveWeapon called with weapon: '{weapon}', components: {components?.Count ?? 0}, tintIndex: {tintIndex}");
-			BaseScript.TriggerClientEvent(player, "armory:ReceiveWeapon", weapon, components ?? new List<string>(), tintIndex);
+			BaseScript.TriggerClientEvent(player, "Armory:ReceiveWeapon", weapon, components ?? new List<string>(), tintIndex);
 			_weaponTracker.AddWeapon(player, weapon);
 			
 			// Persist to database
@@ -66,7 +66,7 @@ namespace armory.Server
 				return;
 			}
 
-			BaseScript.TriggerClientEvent(player, "armory:RemoveWeapon", weapon);
+			BaseScript.TriggerClientEvent(player, "Armory:RemoveWeapon", weapon);
 			_weaponTracker.RemoveWeapon(player, weapon);
 			
 			// Remove from database
@@ -83,7 +83,7 @@ namespace armory.Server
 				return;
 			}
 
-			BaseScript.TriggerClientEvent(player, "armory:RemoveAllWeapons");
+			BaseScript.TriggerClientEvent(player, "Armory:RemoveAllWeapons");
 			_weaponTracker.ClearWeapons(player);
 			
 			// Remove all from database
@@ -162,7 +162,7 @@ namespace armory.Server
 							}
 
 							// Give weapon without persisting again
-							BaseScript.TriggerClientEvent(player, "armory:ReceiveWeapon", weaponName, components, -1);
+							BaseScript.TriggerClientEvent(player, "Armory:ReceiveWeapon", weaponName, components, -1);
 							_weaponTracker.AddWeapon(player, weaponName);
 							
 							Debug.WriteLine($"[Armory|Server] Loaded weapon {weaponName} with {components.Count} component(s)");
