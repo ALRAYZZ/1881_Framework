@@ -17,10 +17,10 @@ namespace PlayerCore.Server
 		private const string DefaultPedModel = "mp_m_freemode_01";
 
 		// Hospital respawn cords
-		private const float HospitalSpawnX = 307.43f;
-		private const float HospitalSpawnY = -1433.14f;
-		private const float HospitalSpawnZ = 29.97f;
-		private const float HospitalSpawnHeading = 320.0f;
+		private const float HomeSpawnX = -1537.68f;
+		private const float HomeSpawnY = 129.80f;
+		private const float HomeSpawnZ = 57.37f;
+		private const float HomeSpawnHeading = 133.39f;
 
 		// Default player cords when no data in database
 		private const float DefaultSpawnX = -1037.58f;
@@ -28,7 +28,7 @@ namespace PlayerCore.Server
 		private const float DefaultSpawnZ = 20.1693f;
 		private const float DefaultSpawnHeading = 329.94f;
 
-		private readonly HashSet<string> _forceHospitalRespawn = new HashSet<string>();
+		private readonly HashSet<string> _forceHomeRespawn = new HashSet<string>();
 
 		public PlayerCoreServer()
 		{
@@ -74,7 +74,7 @@ namespace PlayerCore.Server
 		private void OnPlayerDied([FromSource] Player player)
 		{
 			if (player == null) return;
-			_forceHospitalRespawn.Add(player.Handle);
+			_forceHomeRespawn.Add(player.Handle);
 			Debug.WriteLine($"[PlayerCore] Player {player.Name} died; next spawn will be at hospital.");
 		}
 
@@ -149,13 +149,13 @@ namespace PlayerCore.Server
 			int health = 200;
 			int armor = 0;
 
-			if (_forceHospitalRespawn.Remove(player.Handle))
+			if (_forceHomeRespawn.Remove(player.Handle))
 			{
 				TriggerClientEvent(player, "PlayerCore:Client:ReceiveSpawnData",
-					HospitalSpawnX, HospitalSpawnY, HospitalSpawnZ, HospitalSpawnHeading,
+					HomeSpawnX, HomeSpawnY, HomeSpawnZ, HomeSpawnHeading,
 					pedModel, health, armor);
 
-				Debug.WriteLine($"[PlayerCore] OnRequestSpawnData: forced hospital respawn for {player.Name} with ped '{pedModel}'.");
+				Debug.WriteLine($"[PlayerCore] OnRequestSpawnData: forced home respawn for {player.Name} with ped '{pedModel}'.");
 				return;
 			}
 
