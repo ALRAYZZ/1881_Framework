@@ -37,6 +37,8 @@ namespace VehicleManager.Server
             // Register server event
             EventHandlers["VehicleManager:Server:SaveParkedVehicle"] += new Action<Player, uint, string, string, float, float, float, float, float, float, float, int>(OnSaveParkedVehicle);
 
+            EventHandlers["VehicleManager:Server:UnparkVehicle"] += new Action<Player, uint, string>(OnUnparkVehicle);
+
             // Listen for PlayerCore notification that a player has spawned
             EventHandlers["VehicleManager:Server:SyncWorldVehiclesForPlayer"] += new Action<Player>(OnSyncWorldVehiclesForPlayer);
 
@@ -248,6 +250,31 @@ namespace VehicleManager.Server
                     await Delay(500);
                     await RegisterExistingVehicle(modelHash, vehicleType, plate, x, y, z, heading, entityId, netId);
                 });
+            }
+        }
+
+        private void OnUnparkVehicle([FromSource] Player player, uint modelHash, string plate)
+        {
+            // Find the vehicle in out tracking by model and plate
+            var vehicleToRemove = _worldVehicles.FirstOrDefault(kvp => 
+                kvp.Value.ModelHash == modelHash && 
+                string.Equals(kvp.Value.Plate?.Trim(), plate?.Trim(), StringComparison.OrdinalIgnoreCase)
+            );
+
+            if (vehicleToRemove.Key != 0)
+            {
+                // Remove from database
+                _vehicleCommands.RemoveVehicleFromDatabase(player, modelHash, plate);
+
+                // Remove from memory tracking
+                _worldVehicles.Remove(vehicleToRemove.Key);
+
+                Debug.WriteLine($"[VehicleManager] Unparked vehicle (DB ID: {vehicleToRemove.Key}, Plate: {plate})");
+            }
+            else
+            {
+                player.TriggerEvent("chat:addMessage", new { args = new[] { $"No parked vehicle found matching that model and plate." } });
+                Debug.WriteLine($"[VehicleManager] No parked vehicle found to unpark for model {modelHash} and plate {plate}");
             }
         }
 

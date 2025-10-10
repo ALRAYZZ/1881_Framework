@@ -40,6 +40,12 @@ namespace VehicleManager.Client.Events
 				ParkCurrentVehicle();
 			});
 
+			_eventHandlers["VehicleManager:Client:RequestUnparkVehicle"] += new Action(() =>
+			{
+				Debug.WriteLine("[VehicleManager] Client received RequestUnparkVehicle event.");
+				UnparkCurrentVehicle();
+			});
+
 			_eventHandlers["VehicleManager:Client:SetVehicleOnGround"] += new Action<int>((netId) =>
 			{
 				SetVehicleOnGroundProperly(netId);
@@ -101,6 +107,36 @@ namespace VehicleManager.Client.Events
 			// Send data to server including vehicle type and entity ID
 			BaseScript.TriggerServerEvent("VehicleManager:Server:SaveParkedVehicle",
 				modelHash, vehicleType, plate, pos.X, pos.Y, pos.Z, heading, rot.X, rot.Y, rot.Z, veh);
+		}
+
+		private void UnparkCurrentVehicle()
+		{
+			// POTENTIAL REFACTOR INTO FUNCTION ALL THIS DRIVER CHECKS
+			int ped = PlayerPedId();
+			if (ped == 0)
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "Error: Could not find your ped." } });
+				return;
+			}
+
+			int veh = GetVehiclePedIsIn(ped, false);
+			if (veh == 0)
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "Error: You are not in a vehicle." } });
+				return;
+			}
+
+			if (GetPedInVehicleSeat(veh, -1) != ped)
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "Error: You must be the driver to unpark the vehicle." } });
+				return;
+			}
+
+			uint modelHash = (uint)GetEntityModel(veh);
+			string plate = GetVehicleNumberPlateText(veh);
+
+			// Send data to server to remove from database (vehicle stays in game)
+			BaseScript.TriggerServerEvent("VehicleManager:Server:UnparkVehicle", modelHash, plate);
 		}
 
 		private string DetermineVehicleType(int vehicle)

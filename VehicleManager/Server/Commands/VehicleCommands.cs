@@ -42,6 +42,13 @@ namespace VehicleManager.Server.Commands
 				// Request vehicle data from client - client will send it back via event
 				player.TriggerEvent("VehicleManager:Client:RequestParkVehicle");
 			}), false);
+
+			RegisterCommand("unpark", new Action<int, List<object>, string>((src, args, raw) =>
+			{
+				var player = _players[src];
+				// Request vehicle data from client
+				player.TriggerEvent("VehicleManager:Client:RequestUnparkVehicle");
+			}), false);
 		}
 
 		// Called by server with vehicle data - entity ID is NOT saved to database
@@ -71,6 +78,27 @@ namespace VehicleManager.Server.Commands
 			{
 				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Parked {vehicleType} (ID: {newId})" } });
 				Debug.WriteLine($"[VehicleManager] Saved new world vehicle to database (ID: {newId}, Plate: {plate})");
+			}));
+		}
+
+		// Remove vehicle from wold vehicles database (does not delete physical entity)
+		public void RemoveVehicleFromDatabase(Player player, uint modelHash, string plate)
+		{
+			const string sql = @"
+				DELETE FROM world_vehicles
+				WHERE model = @model AND plate = @plate
+				LIMIT 1;";
+
+			var parameters = new Dictionary<string, object>
+			{
+				["@model"] = modelHash.ToString(),
+				["@plate"] = string.IsNullOrWhiteSpace(plate) ? null : plate
+			};
+
+			_db.Query(sql, parameters, new Action<dynamic>(_ =>
+			{
+				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Unparked vehicle (Plate: {plate})" } });
+				Debug.WriteLine($"[VehicleManager] Removed world vehicle from database (Plate: {plate})");
 			}));
 		}
 	}
