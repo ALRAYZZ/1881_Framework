@@ -1,0 +1,17 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace VehicleManager.Server.Models
+{
+	public class WorldVehicleData
+	{
+		public int NetId { get; set; }
+		public uint ModelHash { get; set; }
+		public string Plate { get; set; }
+		public float X { get; set; }
+		public float Y { get; set; }
+		public float Z { get; set; }
+		public float Heading { get; set; }
+	}
+}

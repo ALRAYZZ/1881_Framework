@@ -45,7 +45,20 @@ namespace PlayerCore.Server
 			// Mark next spawn to hospital on player death
 			EventHandlers["PlayerCore:Server:PlayerDied"] += new Action<Player>(OnPlayerDied);
 
-			// Note: no "SetPedModel" handling here; PedManager owns ped model updates
+			// Listen for when player actually spawns in world
+			EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerSpawned);
+		}
+
+		private void OnPlayerSpawned([FromSource] Player player)
+		{
+			if (player == null) return;
+
+			Debug.WriteLine($"[PlayerCore] Player {player.Name} has spawned in the world.");
+
+			// Notify VehicleManager to sync world vehicles for this player
+			TriggerEvent("VehicleManager:Server:SyncWorldVehiclesForPlayer", player);
+
+			// Others MODULES CAN LISTEN TO THIS EVENT
 		}
 
 		private void OnPlayerReady([FromSource] Player player)
