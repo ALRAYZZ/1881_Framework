@@ -61,17 +61,53 @@ namespace VehicleManager.Client.Events
 		{
 			var ped = Game.PlayerPed;
 			var pos = ped.Position;
+			float searchRadius = 5.0f;
 
-			int vehicleHandle = GetClosestVehicle(pos.X, pos.Y, pos.Z, 5.0f, 0, 70);
+			// Find closest vehicle within radius
+			int closestVehicle = 0;
+			float closestDistance = searchRadius;
 
-			if (vehicleHandle != 0)
+			// Enumerate all vehicles using FiveM's entity enumeration
+			int currentVehicle = 0;
+			int entityEnum = FindFirstVehicle(ref currentVehicle);
+
+			if (entityEnum != 0)
 			{
-				_vehicleFactory.DeleteVehicle(vehicleHandle);
-				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "Deleted nearest vehicle." } });
+				do
+				{
+					if (DoesEntityExist(currentVehicle))
+					{
+						var vehPos = GetEntityCoords(currentVehicle, true);
+						float distance = GetDistanceBetweenCoords(pos.X, pos.Y, pos.Z, vehPos.X, vehPos.Y, vehPos.Z, true);
+
+						if (distance < closestDistance)
+						{
+							closestDistance = distance;
+							closestVehicle = currentVehicle; // Store the closest vehicle handle
+						}
+					}
+
+					// Get next vehicle
+					if (!FindNextVehicle(entityEnum, ref currentVehicle))
+					{
+						break;
+					}
+
+				} while (true);
+
+				EndFindVehicle(entityEnum);
+			}
+
+			if (closestVehicle != 0)
+			{
+				Debug.WriteLine($"[VehicleManager] Deleting vehicle {closestVehicle} at distance {closestDistance}m");
+				_vehicleFactory.DeleteVehicle(closestVehicle);
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { $"Deleted vehicle at {closestDistance:F2}m away." } });
 			}
 			else
 			{
-				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "No vehicle found nearby." } });
+				Debug.WriteLine($"[VehicleManager] No vehicle found within {searchRadius}m");
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { $"No vehicle found within {searchRadius}m." } });
 			}
 		}
 
