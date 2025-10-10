@@ -61,11 +61,11 @@ namespace VehicleManager.Server
 
             try
             {
-                // Get all vehicles currently in the world (returns List<object>, need to convert)
+                // Get all vehicles currently in the world
                 var allVehiclesObj = GetAllVehicles();
                 List<int> allVehicles = new List<int>();
                 
-                // Convert List<object> to List<int>
+                // Convert to List<int>
                 foreach (var vehObj in allVehiclesObj)
                 {
                     try
@@ -125,13 +125,11 @@ namespace VehicleManager.Server
                                 string vehPlate = GetVehicleNumberPlateText(veh);
                                 var vehPos = GetEntityCoords(veh);
 
-                                // Match by model, plate, and approximate position (within 5 units)
+                                // Match by model and plate (position can drift)
                                 bool modelMatch = vehModel == modelHash;
                                 bool plateMatch = string.Equals(vehPlate?.Trim(), plate?.Trim(), StringComparison.OrdinalIgnoreCase);
-                                float distance = GetDistance(vehPos.X, vehPos.Y, vehPos.Z, dbX, dbY, dbZ);
-                                bool positionMatch = distance < 10.0f; // Increased tolerance
 
-                                if (modelMatch && plateMatch && positionMatch)
+                                if (modelMatch && plateMatch)
                                 {
                                     // This vehicle already exists in the world!
                                     int netId = NetworkGetNetworkIdFromEntity(veh);
@@ -198,24 +196,53 @@ namespace VehicleManager.Server
 
         private void OnSaveParkedVehicle([FromSource] Player player, uint modelHash, string vehicleType, string plate, float x, float y, float z, float heading, float rx, float ry, float rz, int entityId)
         {
-            // Get the network ID from the entity
-            int netId = NetworkGetNetworkIdFromEntity(entityId);
+            // Validate entity exists before trying to get network ID
+            int netId = 0;
+            if (entityId != 0 && DoesEntityExist(entityId))
+            {
+                netId = NetworkGetNetworkIdFromEntity(entityId);
+            }
+            else
+            {
+                Debug.WriteLine($"[VehicleManager] Warning: Entity {entityId} does not exist on server. Proceeding without netId.");
+            }
 
-            // Check if this vehicle is already tracked (player is re-parking an existing world vehicle)
-            var existingVehicle = _worldVehicles.FirstOrDefault(kvp => kvp.Value.EntityId == entityId);
+            // Check if this vehicle matches an existing world vehicle by model and plate
+            var existingVehicle = _worldVehicles.FirstOrDefault(kvp => 
+                kvp.Value.ModelHash == modelHash && 
+                string.Equals(kvp.Value.Plate?.Trim(), plate?.Trim(), StringComparison.OrdinalIgnoreCase)
+            );
             
             if (existingVehicle.Key != 0)
             {
                 // Update existing vehicle position in database
                 UpdateVehiclePosition(existingVehicle.Key, x, y, z, heading, rx, ry, rz);
+                
+                // Update entity ID in memory only if entity is valid
+                if (entityId != 0 && DoesEntityExist(entityId))
+                {
+                    _worldVehicles[existingVehicle.Key].EntityId = entityId;
+                    if (netId != 0)
+                    {
+                        _worldVehicles[existingVehicle.Key].NetId = netId;
+                    }
+                }
+                
+                // Always update position data
+                _worldVehicles[existingVehicle.Key].X = x;
+                _worldVehicles[existingVehicle.Key].Y = y;
+                _worldVehicles[existingVehicle.Key].Z = z;
+                _worldVehicles[existingVehicle.Key].Heading = heading;
+                
                 player.TriggerEvent("chat:addMessage", new { args = new[] { $"Updated parked {vehicleType} position (ID: {existingVehicle.Key})" } });
+                Debug.WriteLine($"[VehicleManager] Updated existing world vehicle (DB ID: {existingVehicle.Key}, Entity: {entityId}, NetID: {netId}, Plate: {plate})");
             }
             else
             {
-                // Save new parked vehicle (NO entity ID in database)
+                // Save new parked vehicle
                 _vehicleCommands.SaveVehicleToDatabase(player, modelHash, vehicleType, plate, x, y, z, heading, rx, ry, rz, entityId);
 
-                // Add to tracking immediately (will be updated with DB ID after insert)
+                // Add to tracking immediately
                 _ = Task.Run(async () =>
                 {
                     await Delay(500);
@@ -246,22 +273,13 @@ namespace VehicleManager.Server
             {
                 Debug.WriteLine($"[VehicleManager] Updated position for vehicle DB ID {dbId}");
             }));
-
-            // Update in-memory tracking
-            if (_worldVehicles.ContainsKey(dbId))
-            {
-                _worldVehicles[dbId].X = x;
-                _worldVehicles[dbId].Y = y;
-                _worldVehicles[dbId].Z = z;
-                _worldVehicles[dbId].Heading = heading;
-            }
         }
 
         private async Task RegisterExistingVehicle(uint modelHash, string vehicleType, string plate, float x, float y, float z, float heading, int entityId, int netId)
         {
             try
             {
-                // Query by model, plate, and position (NOT entity ID)
+                // Query by model and plate only
                 const string sql = @"
                     SELECT id FROM world_vehicles 
                     WHERE model = @model AND plate = @plate
@@ -308,7 +326,7 @@ namespace VehicleManager.Server
                                 Heading = heading
                             };
 
-                            Debug.WriteLine($"[VehicleManager] Registered existing parked vehicle (DB ID: {dbId}, Entity: {entityId})");
+                            Debug.WriteLine($"[VehicleManager] Registered new parked vehicle (DB ID: {dbId}, Entity: {entityId}, Plate: {plate})");
                         }
                     }
                 }));
@@ -345,8 +363,7 @@ namespace VehicleManager.Server
             try
             {
                 // Check if vehicle still exists (might have been driven away, not destroyed)
-                int existingEntity = NetworkGetEntityFromNetworkId(data.NetId);
-                if (existingEntity != 0 && DoesEntityExist(existingEntity))
+                if (data.EntityId != 0 && DoesEntityExist(data.EntityId))
                 {
                     Debug.WriteLine($"[VehicleManager] Vehicle {dbId} still exists, not respawning.");
                     return;
@@ -367,7 +384,7 @@ namespace VehicleManager.Server
                     int netId = NetworkGetNetworkIdFromEntity(veh);
                     if (netId != 0)
                     {
-                        // Update tracking with new entity/network IDs (in memory only)
+                        // Update tracking with new entity/network IDs
                         _worldVehicles[dbId].NetId = netId;
                         _worldVehicles[dbId].EntityId = veh;
 
@@ -396,7 +413,7 @@ namespace VehicleManager.Server
                         var data = kvp.Value;
                         int entity = data.EntityId;
 
-                        // Only respawn if entity doesn't exist (destroyed), not if it's just being driven
+                        // Only respawn if entity doesn't exist (destroyed)
                         if (entity == 0 || !DoesEntityExist(entity))
                         {
                             Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {dbId}) missing. Respawning...");
@@ -448,7 +465,7 @@ namespace VehicleManager.Server
                         {
                             int dbId = Convert.ToInt32(row.id);
 
-                            // CRITICAL: Skip if already tracked (vehicle exists in world)
+                            // Skip if already tracked
                             if (_worldVehicles.ContainsKey(dbId))
                             {
                                 skipped++;
