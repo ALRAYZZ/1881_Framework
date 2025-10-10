@@ -1,6 +1,7 @@
 ﻿using CitizenFX.Core;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using VehicleManager.Server.Interfaces;
 using static CitizenFX.Core.Native.API;
@@ -12,12 +13,13 @@ namespace VehicleManager.Server.Commands
 	{
 		private readonly IVehicleManager _vehicleManager;
 		private readonly PlayerList _players;
+		private readonly dynamic _db;
 
-		public VehicleCommands(IVehicleManager vehicleManager, PlayerList players)
+		public VehicleCommands(IVehicleManager vehicleManager, PlayerList players, dynamic db)
 		{
 			_vehicleManager = vehicleManager;
 			_players = players;
-
+			_db = db;
 
 			Debug.WriteLine("[VehicleManager] Registering server commands...");
 
@@ -33,6 +35,40 @@ namespace VehicleManager.Server.Commands
 				var player = _players[src];
 				_vehicleManager.RequestDeleteVehicle(player);
 			}), false);
+
+			RegisterCommand("park", new Action<int, List<object>, string>((src, args, raw) =>
+			{
+				var player = _players[src];
+				// Request vehicle data from client - client will send it back via event
+				player.TriggerEvent("VehicleManager:Client:RequestParkVehicle");
+			}), false);
+		}
+
+		// Called by client with vehicle data
+		public void SaveVehicleToDatabase(Player player, uint modelHash, string plate, float x, float y, float z, float heading, float rx, float ry, float rz)
+		{
+			// Build compact JSON
+			string J(double v) => v.ToString(CultureInfo.InvariantCulture);
+			string positionJson = $"{{\"x\":{J(x)},\"y\":{J(y)},\"z\":{J(z)},\"heading\":{J(heading)}}}";
+			string rotationJson = $"{{\"x\":{J(rx)},\"y\":{J(ry)},\"z\":{J(rz)}}}";
+
+			const string sql = @"
+				INSERT INTO world_vehicles (model, plate, position, rotation, props)
+				VALUES (@model, @plate, @position, @rotation, @props);";
+
+			var parameters = new Dictionary<string, object>
+			{
+				["@model"] = modelHash.ToString(),
+				["@plate"] = string.IsNullOrWhiteSpace(plate) ? null : plate,
+				["@position"] = positionJson,
+				["@rotation"] = rotationJson,
+				["@props"] = "{}" // Placeholder for vehicle properties EXTEND LATER
+			};
+
+			_db.Insert(sql, parameters, new Action<dynamic>(newId =>
+			{
+				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Parked vehicle (ID: {newId})" } });
+			}));
 		}
 	}
 }
