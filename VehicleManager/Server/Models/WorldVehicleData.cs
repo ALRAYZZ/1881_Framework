@@ -7,7 +7,9 @@ namespace VehicleManager.Server.Models
 	public class WorldVehicleData
 	{
 		public int NetId { get; set; }
+		public int EntityId { get; set; }
 		public uint ModelHash { get; set; }
+		public string VehicleType { get; set; }
 		public string Plate { get; set; }
 		public float X { get; set; }
 		public float Y { get; set; }

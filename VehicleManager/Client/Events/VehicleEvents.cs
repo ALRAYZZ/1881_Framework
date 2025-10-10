@@ -95,9 +95,35 @@ namespace VehicleManager.Client.Events
 			float heading = GetEntityHeading(veh);
 			var rot = GetEntityRotation(veh, 0);
 
-			// Send data to server
+			// Determine vehicle type based on vehicle class
+			string vehicleType = DetermineVehicleType(veh);
+
+			// Send data to server including vehicle type and entity ID
 			BaseScript.TriggerServerEvent("VehicleManager:Server:SaveParkedVehicle",
-				modelHash, plate, pos.X, pos.Y, pos.Z, heading, rot.X, rot.Y, rot.Z);
+				modelHash, vehicleType, plate, pos.X, pos.Y, pos.Z, heading, rot.X, rot.Y, rot.Z, veh);
+		}
+
+		private string DetermineVehicleType(int vehicle)
+		{
+			int vehicleClass = GetVehicleClass(vehicle);
+
+			switch (vehicleClass)
+			{
+				case 8:  // Motorcycles
+					return "bike";
+				case 14: // Boats
+					return "boat";
+				case 15: // Helicopters
+					return "heli";
+				case 16: // Planes
+					return "plane";
+				case 11: // Utility/Trailers
+					if (IsThisModelABicycle((uint)GetEntityModel(vehicle)))
+						return "bike";
+					return "automobile";
+				default:
+					return "automobile";
+			}
 		}
 
 		private void SetVehicleOnGroundProperly(int netId)

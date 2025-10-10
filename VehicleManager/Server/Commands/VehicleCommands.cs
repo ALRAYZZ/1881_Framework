@@ -45,7 +45,7 @@ namespace VehicleManager.Server.Commands
 		}
 
 		// Called by client with vehicle data
-		public void SaveVehicleToDatabase(Player player, uint modelHash, string plate, float x, float y, float z, float heading, float rx, float ry, float rz)
+		public void SaveVehicleToDatabase(Player player, uint modelHash, string vehicleType, string plate, float x, float y, float z, float heading, float rx, float ry, float rz, int entityId)
 		{
 			// Build compact JSON
 			string J(double v) => v.ToString(CultureInfo.InvariantCulture);
@@ -53,12 +53,14 @@ namespace VehicleManager.Server.Commands
 			string rotationJson = $"{{\"x\":{J(rx)},\"y\":{J(ry)},\"z\":{J(rz)}}}";
 
 			const string sql = @"
-				INSERT INTO world_vehicles (model, plate, position, rotation, props)
-				VALUES (@model, @plate, @position, @rotation, @props);";
+				INSERT INTO world_vehicles (model, vehicle_type, current_entity_id, plate, position, rotation, props)
+				VALUES (@model, @vehicle_type, @entity_id, @plate, @position, @rotation, @props);";
 
 			var parameters = new Dictionary<string, object>
 			{
 				["@model"] = modelHash.ToString(),
+				["@vehicle_type"] = vehicleType,
+				["@entity_id"] = entityId,
 				["@plate"] = string.IsNullOrWhiteSpace(plate) ? null : plate,
 				["@position"] = positionJson,
 				["@rotation"] = rotationJson,
@@ -67,7 +69,7 @@ namespace VehicleManager.Server.Commands
 
 			_db.Insert(sql, parameters, new Action<dynamic>(newId =>
 			{
-				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Parked vehicle (ID: {newId})" } });
+				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Parked {vehicleType} (ID: {newId})" } });
 			}));
 		}
 	}
