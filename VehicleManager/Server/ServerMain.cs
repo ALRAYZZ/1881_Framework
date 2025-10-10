@@ -22,6 +22,9 @@ namespace VehicleManager.Server
 
         private VehicleCommands _vehicleCommands;
 
+        // Lock to prevent concurrent spawning
+        private bool _isSpawning = false;
+
         public ServerMain()
         {
             IVehicleManager vehicleManager = new Services.VehicleManager();
@@ -40,7 +43,7 @@ namespace VehicleManager.Server
             // Listen for entity removal to respawn destroyed world vehicles
             EventHandlers["entityRemoved"] += new Action<int>(OnEntityRemoved);
 
-			Debug.WriteLine("[VehicleManager] Server initialized.");
+            Debug.WriteLine("[VehicleManager] Server initialized.");
 
             _ = SpawnWorldVehiclesAsync();
             _ = MonitorWorldVehicles();
@@ -52,68 +55,186 @@ namespace VehicleManager.Server
 
             Debug.WriteLine($"[VehicleManager] Syncing {_worldVehicles.Count} world vehicles for player {player.Name}");
 
-			// Notify client about all existing world vehicles
-            foreach(var kvp in _worldVehicles)
+            // Notify client about all existing world vehicles
+            foreach (var kvp in _worldVehicles)
             {
                 int netId = kvp.Value.NetId;
-                int entity = NetworkGetEntityFromNetworkId(netId);
-
-                if (entity != 0 && DoesEntityExist(entity))
+                
+                // Don't try to get entity on server - just send the netId to client
+                if (netId != 0)
                 {
                     player.TriggerEvent("VehicleManager:Client:SetVehicleOnGround", netId);
-				}
-			}
-		}
+                }
+            }
+        }
 
-		private void OnSaveParkedVehicle([FromSource] Player player, uint modelHash, string plate, float x, float y, float z, float heading, float rx, float ry, float rz)
+        private void OnSaveParkedVehicle([FromSource] Player player, uint modelHash, string plate, float x, float y, float z, float heading, float rx, float ry, float rz)
         {
             _vehicleCommands.SaveVehicleToDatabase(player, modelHash, plate, x, y, z, heading, rx, ry, rz);
 
-            // Reload world vehicles to include the newly parked one
+            // Instead of reloading everything, just spawn the new vehicle
             _ = Task.Run(async () =>
             {
                 await Delay(1000);
-                await SpawnWorldVehiclesAsync();
+                await SpawnNewlyParkedVehicle(modelHash, plate, x, y, z, heading);
             });
+        }
+
+        private async Task SpawnNewlyParkedVehicle(uint modelHash, string plate, float x, float y, float z, float heading)
+        {
+            try
+            {
+                // Query the database for the vehicle we just inserted
+                const string sql = @"
+                    SELECT id FROM world_vehicles 
+                    WHERE model = @model AND plate = @plate 
+                    ORDER BY id DESC LIMIT 1;";
+
+                var parameters = new Dictionary<string, object>
+                {
+                    ["@model"] = modelHash.ToString(),
+                    ["@plate"] = plate
+                };
+
+                _db.Query(sql, parameters, new Action<dynamic>(rows =>
+                {
+                    if (rows != null)
+                    {
+                        dynamic firstRow = null;
+                        if (rows is System.Collections.IEnumerable enumerable)
+                        {
+                            var enumerator = enumerable.GetEnumerator();
+                            if (enumerator.MoveNext())
+                            {
+                                firstRow = enumerator.Current;
+                            }
+                        }
+                        else
+                        {
+                            firstRow = rows;
+                        }
+
+                        if (firstRow != null)
+                        {
+                            int dbId = Convert.ToInt32(firstRow.id);
+
+                            // Check if already spawned
+                            if (_worldVehicles.ContainsKey(dbId))
+                            {
+                                Debug.WriteLine($"[VehicleManager] Vehicle {dbId} already spawned, skipping.");
+                                return;
+                            }
+
+                            float zSpawn = z + 1.0f;
+                            
+                            // Most vehicles are automobiles, you can extend this logic later
+                            string vehicleType = "automobile";
+                            
+                            // Use CREATE_VEHICLE_SERVER_SETTER native (hash: 0x6AE51D4B)
+                            int veh = Function.Call<int>(Hash.CREATE_VEHICLE_SERVER_SETTER, modelHash, vehicleType, x, y, zSpawn, heading);
+
+                            if (veh != 0)
+                            {
+                                if (!string.IsNullOrEmpty(plate))
+                                {
+                                    SetVehicleNumberPlateText(veh, plate);
+                                }
+
+                                int netId = NetworkGetNetworkIdFromEntity(veh);
+                                if (netId != 0)
+                                {
+                                    _worldVehicles[dbId] = new WorldVehicleData
+                                    {
+                                        NetId = netId,
+                                        ModelHash = modelHash,
+                                        Plate = plate,
+                                        X = x,
+                                        Y = y,
+                                        Z = z,
+                                        Heading = heading
+                                    };
+
+                                    TriggerClientEvent("VehicleManager:Client:SetVehicleOnGround", netId);
+                                    Debug.WriteLine($"[VehicleManager] Spawned newly parked vehicle (DB ID: {dbId}, NetID: {netId})");
+                                }
+                            }
+                            else
+                            {
+                                Debug.WriteLine($"[VehicleManager] Failed to spawn vehicle DB ID {dbId} with hash {modelHash}");
+                            }
+                        }
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VehicleManager] Error spawning newly parked vehicle: {ex.Message}");
+            }
         }
 
         private void OnEntityRemoved(int entity)
         {
-			// Check if this was a world vehicle
-            int netId = NetworkGetNetworkIdFromEntity(entity);
-            if (netId == 0) return;
-
-            var vehicleToRespawn = _worldVehicles.FirstOrDefault(kvp => kvp.Value.NetId == netId);
-            if (vehicleToRespawn.Key != 0)
+            try
             {
-                Debug.WriteLine($"[VehicleManager] World vehicle with netId {netId} removed. Respawning...");
-                _ = RespawnWorldVehicle(vehicleToRespawn.Key, vehicleToRespawn.Value);
+                // Search through our tracked vehicles to find which one was removed
+                var vehicleToRespawn = _worldVehicles.FirstOrDefault(kvp =>
+                {
+                    try
+                    {
+                        int trackedEntity = NetworkGetEntityFromNetworkId(kvp.Value.NetId);
+                        return trackedEntity == entity;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                });
+
+                if (vehicleToRespawn.Key != 0)
+                {
+                    Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {vehicleToRespawn.Key}) removed. Scheduling respawn...");
+                    _ = RespawnWorldVehicle(vehicleToRespawn.Key, vehicleToRespawn.Value);
+                }
             }
-		}
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VehicleManager] Error in OnEntityRemoved: {ex.Message}");
+            }
+        }
 
         private async Task RespawnWorldVehicle(int dbId, WorldVehicleData data)
         {
             await Delay(5000); // Wait 5 seconds before respawn
 
-            float zSpawn = data.Z + 1.0f;
-            int veh = CreateVehicle(data.ModelHash, data.X, data.Y, zSpawn, data.Heading, true, true);
-
-            if (veh != 0)
+            try
             {
-                if (!string.IsNullOrEmpty(data.Plate))
-                {
-                    SetVehicleNumberPlateText(veh, data.Plate);
-				}
+                float zSpawn = data.Z + 1.0f;
+                string vehicleType = "automobile";
+                
+                // Use CREATE_VEHICLE_SERVER_SETTER
+                int veh = Function.Call<int>(Hash.CREATE_VEHICLE_SERVER_SETTER, data.ModelHash, vehicleType, data.X, data.Y, zSpawn, data.Heading);
 
-                int netId = NetworkGetNetworkIdFromEntity(veh);
-                if (netId != 0)
+                if (veh != 0)
                 {
-                    _worldVehicles[dbId].NetId = netId;
-                    TriggerClientEvent("VehicleManager:Client:SetVehicleOnGround", netId);
-                    Debug.WriteLine($"[VehicleManager] Respawned world vehicle with netId {netId}.");
+                    if (!string.IsNullOrEmpty(data.Plate))
+                    {
+                        SetVehicleNumberPlateText(veh, data.Plate);
+                    }
+
+                    int netId = NetworkGetNetworkIdFromEntity(veh);
+                    if (netId != 0)
+                    {
+                        _worldVehicles[dbId].NetId = netId;
+                        TriggerClientEvent("VehicleManager:Client:SetVehicleOnGround", netId);
+                        Debug.WriteLine($"[VehicleManager] Respawned world vehicle (DB ID: {dbId}, NetID: {netId})");
+                    }
                 }
-			}
-		}
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VehicleManager] Error respawning vehicle {dbId}: {ex.Message}");
+            }
+        }
 
         private async Task MonitorWorldVehicles()
         {
@@ -123,97 +244,141 @@ namespace VehicleManager.Server
 
                 foreach (var kvp in _worldVehicles.ToList())
                 {
-                    int dbId = kvp.Key;
-                    var data = kvp.Value;
-                    int entity = NetworkGetEntityFromNetworkId(data.NetId);
-
-                    if (entity == 0 || !DoesEntityExist(entity))
-                    {
-                        Debug.WriteLine($"[VehicleManager] World vehicle with netId {data.NetId} missing. Respawning...");
-                        await RespawnWorldVehicle(dbId, data);
-                    }
-                }
-			}
-        }
-
-		private async Task SpawnWorldVehiclesAsync()
-        {
-            // Make sure oxmysql and Database are loaded
-            await Delay(0);
-
-            const string sql = @"
-                SELECT
-                id,
-                model,
-                plate,
-                CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.x')) AS DOUBLE)   AS x,
-                CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.y')) AS DOUBLE)   AS y,
-                CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.z')) AS DOUBLE)   AS z,
-                CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.heading')) AS DOUBLE) AS heading
-                FROM world_vehicles;";
-
-            _db.Query(sql, new Dictionary<string, object>(), new Action<dynamic>(rows =>
-            {
-                int count = 0;
-                foreach (var row in rows)
-                {
                     try
                     {
-                        int dbId = Convert.ToInt32(row.id);
-                        string modelStr = row.model;
-                        uint modelHash;
-                        if (!uint.TryParse(modelStr, out modelHash))
+                        int dbId = kvp.Key;
+                        var data = kvp.Value;
+                        int entity = NetworkGetEntityFromNetworkId(data.NetId);
+
+                        if (entity == 0 || !DoesEntityExist(entity))
                         {
-                            modelHash = (uint)GetHashKey(modelStr);
-                        }
-
-                        float x = Convert.ToSingle(row.x, CultureInfo.InvariantCulture);
-                        float y = Convert.ToSingle(row.y, CultureInfo.InvariantCulture);
-                        float z = Convert.ToSingle(row.z, CultureInfo.InvariantCulture);
-                        float heading = Convert.ToSingle(row.heading, CultureInfo.InvariantCulture);
-
-                        // Spawn above ground to avoid clipping; clients will ground it
-                        float zSpawn = z + 1.0f;
-
-                        // Server-side CreateVehicle automatically creates a networked entity
-                        int veh = CreateVehicle(modelHash, x, y, zSpawn, heading, true, true);
-                        if (veh != 0)
-                        {
-                            string plate = row.plate;
-                            if (!string.IsNullOrEmpty(plate))
-                            {
-                                SetVehicleNumberPlateText(veh, plate);
-                            }
-
-                            // Get network ID for client communication
-                            int netId = NetworkGetNetworkIdFromEntity(veh);
-                            if (netId != 0)
-                            {
-                                _worldVehicles[dbId] = new WorldVehicleData
-                                {
-                                    NetId = netId,
-                                    ModelHash = modelHash,
-                                    Plate = plate,
-                                    X = x,
-                                    Y = y,
-                                    Z = z,
-                                    Heading = heading
-                                };  
-
-                                // Ask clients to place it on the ground properly
-                                TriggerClientEvent("VehicleManager:Client:SetVehicleOnGround", netId);
-                            }
-
-                            count++;
+                            Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {dbId}) missing. Respawning...");
+                            await RespawnWorldVehicle(dbId, data);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[VehicleManager] Error spawning world vehicle: {ex.Message}");
+                        Debug.WriteLine($"[VehicleManager] Error monitoring vehicle: {ex.Message}");
                     }
                 }
-                Debug.WriteLine($"[VehicleManager] Spawned {count} world vehicles.");
-            }));
+            }
+        }
+
+        private async Task SpawnWorldVehiclesAsync()
+        {
+            // Prevent concurrent spawning
+            if (_isSpawning)
+            {
+                Debug.WriteLine("[VehicleManager] Already spawning vehicles, skipping.");
+                return;
+            }
+
+            _isSpawning = true;
+
+            try
+            {
+                // Wait for database to be ready
+                await Delay(1000);
+
+                const string sql = @"
+                    SELECT
+                    id,
+                    model,
+                    plate,
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.x')) AS DOUBLE)   AS x,
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.y')) AS DOUBLE)   AS y,
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.z')) AS DOUBLE)   AS z,
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.heading')) AS DOUBLE) AS heading
+                    FROM world_vehicles;";
+
+                _db.Query(sql, new Dictionary<string, object>(), new Action<dynamic>(rows =>
+                {
+                    int count = 0;
+                    foreach (var row in rows)
+                    {
+                        try
+                        {
+                            int dbId = Convert.ToInt32(row.id);
+
+                            // Skip if already spawned
+                            if (_worldVehicles.ContainsKey(dbId))
+                            {
+                                Debug.WriteLine($"[VehicleManager] Vehicle {dbId} already exists, skipping.");
+                                count++;
+                                continue;
+                            }
+
+                            string modelStr = row.model;
+                            uint modelHash;
+                            if (!uint.TryParse(modelStr, out modelHash))
+                            {
+                                modelHash = (uint)GetHashKey(modelStr);
+                            }
+
+                            float x = Convert.ToSingle(row.x, CultureInfo.InvariantCulture);
+                            float y = Convert.ToSingle(row.y, CultureInfo.InvariantCulture);
+                            float z = Convert.ToSingle(row.z, CultureInfo.InvariantCulture);
+                            float heading = Convert.ToSingle(row.heading, CultureInfo.InvariantCulture);
+                            string plate = row.plate;
+
+                            // Spawn above ground to avoid clipping; clients will ground it
+                            float zSpawn = z + 1.0f;
+
+                            // Default to automobile for now
+                            string vehicleType = "automobile";
+
+                            // Use CREATE_VEHICLE_SERVER_SETTER
+                            int veh = Function.Call<int>(Hash.CREATE_VEHICLE_SERVER_SETTER, modelHash, vehicleType, x, y, zSpawn, heading);
+                            
+                            if (veh != 0)
+                            {
+                                if (!string.IsNullOrEmpty(plate))
+                                {
+                                    SetVehicleNumberPlateText(veh, plate);
+                                }
+
+                                // Get network ID for client communication
+                                int netId = NetworkGetNetworkIdFromEntity(veh);
+                                if (netId != 0)
+                                {
+                                    _worldVehicles[dbId] = new WorldVehicleData
+                                    {
+                                        NetId = netId,
+                                        ModelHash = modelHash,
+                                        Plate = plate,
+                                        X = x,
+                                        Y = y,
+                                        Z = z,
+                                        Heading = heading
+                                    };
+
+                                    // Ask clients to place it on the ground properly
+                                    TriggerClientEvent("VehicleManager:Client:SetVehicleOnGround", netId);
+                                }
+
+                                count++;
+                            }
+                            else
+                            {
+                                Debug.WriteLine($"[VehicleManager] Failed to create vehicle entity for DB ID {dbId}, hash {modelHash}, type {vehicleType}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[VehicleManager] Error spawning world vehicle: {ex.Message}");
+                        }
+                    }
+                    Debug.WriteLine($"[VehicleManager] Spawned {count} world vehicles.");
+                }));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VehicleManager] Error in SpawnWorldVehiclesAsync: {ex.Message}");
+            }
+            finally
+            {
+                _isSpawning = false;
+            }
         }
     }
 }
