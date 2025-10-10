@@ -15,5 +15,11 @@ namespace VehicleManager.Server.Models
 		public float Y { get; set; }
 		public float Z { get; set; }
 		public float Heading { get; set; }
+
+		// Color properties
+		public int PrimaryColor { get; set; }
+		public int SecondaryColor { get; set; }
+		public string CustomPrimaryRGB { get; set; }
+		public string CustomSecondaryRGB { get; set; }
 	}
 }

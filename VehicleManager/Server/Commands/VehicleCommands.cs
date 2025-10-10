@@ -52,17 +52,20 @@ namespace VehicleManager.Server.Commands
 		}
 
 		// Called by server with vehicle data - entity ID is NOT saved to database
-		public void SaveVehicleToDatabase(Player player, uint modelHash, string vehicleType, string plate, float x, float y, float z, float heading, float rx, float ry, float rz, int entityId)
+		public void SaveVehicleToDatabase(Player player, uint modelHash, string vehicleType, string plate, 
+    float x, float y, float z, float heading, float rx, float ry, float rz, int entityId,
+    int primaryColor, int secondaryColor, string customPrimaryRGB, string customSecondaryRGB)
 		{
 			// Build compact JSON
 			string J(double v) => v.ToString(CultureInfo.InvariantCulture);
 			string positionJson = $"{{\"x\":{J(x)},\"y\":{J(y)},\"z\":{J(z)},\"heading\":{J(heading)}}}";
 			string rotationJson = $"{{\"x\":{J(rx)},\"y\":{J(ry)},\"z\":{J(rz)}}}";
 
-			// REMOVED current_entity_id from INSERT - it's not persistent
 			const string sql = @"
-				INSERT INTO world_vehicles (model, vehicle_type, plate, position, rotation, props)
-				VALUES (@model, @vehicle_type, @plate, @position, @rotation, @props);";
+				INSERT INTO world_vehicles (model, vehicle_type, plate, position, rotation, props, 
+					primary_color, secondary_color, custom_primary_rgb, custom_secondary_rgb)
+				VALUES (@model, @vehicle_type, @plate, @position, @rotation, @props,
+					@primary_color, @secondary_color, @custom_primary_rgb, @custom_secondary_rgb);";
 
 			var parameters = new Dictionary<string, object>
 			{
@@ -71,13 +74,17 @@ namespace VehicleManager.Server.Commands
 				["@plate"] = string.IsNullOrWhiteSpace(plate) ? null : plate,
 				["@position"] = positionJson,
 				["@rotation"] = rotationJson,
-				["@props"] = "{}" // Placeholder for vehicle properties EXTEND LATER
+				["@props"] = "{}",
+				["@primary_color"] = primaryColor,
+				["@secondary_color"] = secondaryColor,
+				["@custom_primary_rgb"] = string.IsNullOrEmpty(customPrimaryRGB) ? null : customPrimaryRGB,
+				["@custom_secondary_rgb"] = string.IsNullOrEmpty(customSecondaryRGB) ? null : customSecondaryRGB
 			};
 
 			_db.Insert(sql, parameters, new Action<dynamic>(newId =>
 			{
-				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Parked {vehicleType} (ID: {newId})" } });
-				Debug.WriteLine($"[VehicleManager] Saved new world vehicle to database (ID: {newId}, Plate: {plate})");
+				player.TriggerEvent("chat:addMessage", new { args = new[] { $"Parked {vehicleType} with colors (ID: {newId})" } });
+				Debug.WriteLine($"[VehicleManager] Saved new world vehicle to database (ID: {newId}, Colors: {primaryColor}/{secondaryColor})");
 			}));
 		}
 
