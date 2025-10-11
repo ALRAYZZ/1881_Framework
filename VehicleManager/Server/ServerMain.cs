@@ -213,7 +213,8 @@ namespace VehicleManager.Server
             }
         }
 
-        private void OnSyncWorldVehiclesForPlayer([FromSource] Player player)
+		// Removed [FromSource] TEST IF WORKS
+		private void OnSyncWorldVehiclesForPlayer(Player player)
         {
             if (player == null) return;
 
@@ -593,22 +594,15 @@ namespace VehicleManager.Server
                         // Only respawn if entity doesn't exist (destroyed)
                         if (entity == 0)
                         {
-                            Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {dbId}) has entity ID 0. Respawning...");
                             await RespawnWorldVehicle(dbId, data);
                         }
                         else if (!DoesEntityExist(entity))
                         {
-                            Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {dbId}, Entity: {entity}) no longer exists. Respawning...");
 
                             // Clean up reverse lookup
                             _netIdToDbId.Remove(entity);
 
                             await RespawnWorldVehicle(dbId, data);
-                        }
-                        else
-                        {
-                            // Vehicle exists
-                            Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {dbId}, Entity: {entity}) is healthy.");
                         }
                     }
                     catch (Exception ex)
@@ -616,6 +610,8 @@ namespace VehicleManager.Server
                         Debug.WriteLine($"[VehicleManager] Error monitoring vehicle: {ex.Message}");
                     }
                 }
+
+                Debug.WriteLine($"[VehicleManager] MonitorWorldVehicles: Check complete. On {_worldVehicles.Count} vehicles.");
             }
         }
 
