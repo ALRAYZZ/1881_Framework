@@ -75,6 +75,9 @@ namespace VehicleManager.Server
 			EventHandlers["entityRemoved"] +=
 				new Action<int>(OnEntityRemoved);
 
+			EventHandlers["VehicleManager:Server:UpdateVehicleColors"] +=
+				new Action<Player, int, int, int>(OnUpdateVehicleColors);
+
 			Debug.WriteLine("[VehicleManager] Event handlers registered");
 		}
 
@@ -212,6 +215,38 @@ namespace VehicleManager.Server
 		private void OnEntityRemoved(int entity)
 		{
 			_monitor.HandleEntityRemoval(entity);
+		}
+
+		private void OnUpdateVehicleColors([FromSource] Player player, int vehicleNetId, int primaryColor, int secondaryColor)
+		{
+			try
+			{
+				Debug.WriteLine($"[VehicleManager] Color change request - NetID: {vehicleNetId}, Primary: {primaryColor}, Secondary: {secondaryColor}");
+
+				if (_tracker.TryGetVehicleByNetId(vehicleNetId, out int dbId, out var vehicleData))
+				{
+					// Update in-memory tracking
+					_tracker.UpdateVehiclePosition(dbId, vehicleData.X, vehicleData.Y, vehicleData.Z, vehicleData.Heading,
+						 primaryColor, secondaryColor, null, null);
+
+					// Persist to database
+					_vehicleCommands.UpdateVehicleColors(dbId, primaryColor, secondaryColor);
+
+					// Broadcast to all clients to update colors
+					TriggerClientEvent("VehicleManager:Client:ApplyVehicleColors", vehicleNetId, primaryColor, secondaryColor);
+
+					player.TriggerEvent("chat:addMessage", new { args = new[] { $"Updated vehicle colors (DB ID: {dbId})" } });
+					Debug.WriteLine($"[VehicleManager] Updated vehicle colors (DB ID: {dbId})");
+				}
+				else
+				{
+					Debug.WriteLine($"[VehicleManager] ERROR: Vehicle NetID {vehicleNetId} is not a World Vehicle");
+				}
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine($"[VehicleManager] Error in OnUpdateVehicleColors: {ex.Message}");
+			}
 		}
 
 		#endregion

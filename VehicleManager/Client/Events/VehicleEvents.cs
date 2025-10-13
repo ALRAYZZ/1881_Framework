@@ -48,10 +48,20 @@ namespace VehicleManager.Client.Events
 				UnparkCurrentVehicle();
 			});
 
-			// NEW: Callback from server about world vehicle status
+			// Callback from server about world vehicle status
 			_eventHandlers["VehicleManager:Client:WorldVehicleQueryResult"] += new Action<bool, int, int>((isWorldVehicle, dbId, vehicleEntity) =>
 			{
 				OnWorldVehicleQueryResult(isWorldVehicle, dbId, vehicleEntity);
+			});
+
+			_eventHandlers["VehicleManager:Client:RequestColorChange"] += new Action<int, int>((primaryColor, secondaryColor) =>
+			{
+				ChangeVehicleColors(primaryColor, secondaryColor);
+			});
+
+			_eventHandlers["VehicleManager:Client:ApplyVehicleColors"] += new Action<int, int, int>((netId, primaryColor, secondaryColor) =>
+			{
+				ApplyColorsToNetworkedVehicle(netId, primaryColor, secondaryColor);
 			});
 
 			Debug.WriteLine("[VehicleManager] Client event handlers registered.");
@@ -311,6 +321,60 @@ namespace VehicleManager.Client.Events
 				default:
 					return "automobile";
 			}
+		}
+
+		private void ChangeVehicleColors(int primaryColor, int secondaryColor)
+		{
+			int ped = PlayerPedId();
+			if (ped == 0)
+			{
+				TriggerEvent("chat:addMessage", new { args = new[] { "Error: Could not find your ped." } });
+				return;
+			}
+
+			int veh = GetVehiclePedIsIn(ped, false);
+			if (veh == 0)
+			{
+				TriggerEvent("chat:addMessage", new { args = new[] { "Error: You are not in a vehicle." } });
+				return;
+			}
+
+			if (GetPedInVehicleSeat(veh, -1) != ped)
+			{
+				TriggerEvent("chat:addMessage", new { args = new[] { "Error: You must be the driver to change vehicle colors." } });
+				return;
+			}
+
+			// Apply colors immediately
+			SetVehicleColours(veh, primaryColor, secondaryColor);
+			ClearVehicleCustomPrimaryColour(veh);
+			ClearVehicleCustomSecondaryColour(veh);
+
+			Debug.WriteLine($"[VehicleManager] Applied colors {primaryColor}/{secondaryColor} to vehicle {veh}");
+
+			// Get network ID and query if it's a world vehicle
+			int netId = NetworkGetNetworkIdFromEntity(veh);
+			if (netId != 0)
+			{
+				// Ask server to presist if its a world vehicle
+				TriggerServerEvent("VehicleManager:Server:UpdateVehicleColors", netId, primaryColor, secondaryColor);
+			}
+
+			TriggerServerEvent("chat:addMessage", new { args = new[] { $"Changed vehicle colors to {primaryColor}/{secondaryColor}." } });
+		}
+
+		private void ApplyColorsToNetworkedVehicle(int netId, int primaryColor, int secondaryColor)
+		{
+			int entity = NetworkGetEntityFromNetworkId(netId);
+			if (entity == 0  || !DoesEntityExist(entity))
+			{
+				Debug.WriteLine($"[VehicleManager] Error: Could not find vehicle for NetID {netId}");
+				return;
+			}
+			SetVehicleColours(entity, primaryColor, secondaryColor);
+			ClearVehicleCustomPrimaryColour(entity);
+			ClearVehicleCustomSecondaryColour(entity);
+			Debug.WriteLine($"[VehicleManager] Applied colors {primaryColor}/{secondaryColor} to networked vehicle {entity} (NetID {netId})");
 		}
 	}
 }

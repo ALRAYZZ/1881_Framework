@@ -56,7 +56,34 @@ namespace VehicleManager.Server.Commands
 				var player = _players[src];
 				player.TriggerEvent("VehicleManager:Client:ToggleEngine");
 			}), false);
+
+			RegisterCommand("vehcolor", new Action<int, List<object>, string>((src, args, raw) =>
+			{
+				var player = _players[src];
+
+				if (args.Count < 2)
+				{
+					player.TriggerEvent("chat:addMessage", new { args = new[] { "[VehicleManager] Usage: /vehcolor [primaryColor] [secondaryColor]" } });
+					return;
+				}
+
+				if (!int.TryParse(args[0].ToString(), out int primaryColor) || !int.TryParse(args[1].ToString(), out int secondaryColor))
+				{
+					player.TriggerEvent("chat:addMessage", new { args = new[] { "[VehicleManager] Color values must be integers." } });
+					return;
+				}
+
+				if (primaryColor < 0 || primaryColor > 160 || secondaryColor < 0 || secondaryColor > 159)
+				{
+					player.TriggerEvent("chat:addMessage", new { args = new[] { "[VehicleManager] Color values must be between 0 and 160." } });
+					return;
+				}
+
+				// Trigger client to apply colors and check if world vehicle
+				player.TriggerEvent("VehicleManager:Client:RequestColorChange", primaryColor, secondaryColor);
+			}), false);
 		}
+
 
 		// Called by server with vehicle data - entity ID is NOT saved to database
 		public void SaveVehicleToDatabase(Player player, uint modelHash, string vehicleType, string plate, 
@@ -115,5 +142,30 @@ namespace VehicleManager.Server.Commands
 				Debug.WriteLine($"[VehicleManager] Removed world vehicle from database (Plate: {plate})");
 			}));
 		}
+
+		// Update vehicle colors in database (called by server event)
+		public void UpdateVehicleColors(int dbId, int primaryColor, int secondaryColor)
+		{
+			const string sql = @"
+				UPDATE world_vehicles 
+				SET primary_color = @primary_color, 
+				    secondary_color = @secondary_color,
+				    custom_primary_rgb = NULL,
+				    custom_secondary_rgb = NULL
+				WHERE id = @id;";
+
+			var parameters = new Dictionary<string, object>
+			{
+				["@id"] = dbId,
+				["@primary_color"] = primaryColor,
+				["@secondary_color"] = secondaryColor
+			};
+
+			_db.Query(sql, parameters, new Action<dynamic>(_ =>
+			{
+				Debug.WriteLine($"[VehicleManager] Updated vehicle colors in database (ID: {dbId}, Colors: {primaryColor}/{secondaryColor})");
+			}));
+		}	
+
 	}
 }
