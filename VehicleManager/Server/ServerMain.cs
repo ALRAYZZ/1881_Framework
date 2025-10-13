@@ -20,7 +20,7 @@ namespace VehicleManager.Server
         // Track world vehicles by DB ID (runtime only)
         private readonly Dictionary<int, WorldVehicleData> _worldVehicles = new Dictionary<int, WorldVehicleData>();
 
-        // NEW: Reverse lookup - map NETWORK ID to database ID for quick unpark lookups
+        // Reverse lookup - map NETWORK ID to database ID for quick unpark lookups
         private readonly Dictionary<int, int> _netIdToDbId = new Dictionary<int, int>();
 
         private VehicleCommands _vehicleCommands;
@@ -45,8 +45,11 @@ namespace VehicleManager.Server
 
             EventHandlers["VehicleManager:Server:UnparkVehicle"] += new Action<Player, int>(OnUnparkVehicle);
 
-            // NEW: Query if a vehicle entity is a world vehicle
+            // Query if a vehicle entity is a world vehicle
             EventHandlers["VehicleManager:Server:IsWorldVehicle"] += new Action<Player, int, string>(OnIsWorldVehicle);
+
+            // Persist engine state for tracked world vehicles
+            EventHandlers["VehicleManager:Server:UpdateWorldVehicleEngineState"] += new Action<Player, int, bool>(OnUpdateWorldVehicleEngineState);
 
             // Listen for PlayerCore notification that a player has spawned
             EventHandlers["VehicleManager:Server:SyncWorldVehiclesForPlayer"] += new Action<Player>(OnSyncWorldVehiclesForPlayer);
@@ -66,24 +69,32 @@ namespace VehicleManager.Server
             });
         }
 
+        private static bool ParseJsonBoolean(object raw)
+        {
+            if (raw == null) return false;
+            var s = Convert.ToString(raw, CultureInfo.InvariantCulture)?.Trim();
+            if (string.IsNullOrEmpty(s)) return false;
+            s = s.Trim('"'); // handle JSON_UNQUOTE output safety
+            if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return false;
+            if (int.TryParse(s, out var n)) return n != 0; // tolerate legacy 0/1
+            return false;
+        }
+
         private void OnEntityRemoved(int entity)
         {
             try
             {
-                // Check if this is an entity we intentionally deleted
                 if (_ignoredRemovedEntities.Remove(entity))
                 {
                     Debug.WriteLine($"[VehicleManager] Ignoring removal of intentionally deleted entity {entity}");
                     return;
                 }
 
-                // Get netId from entity to find DB ID
                 int netId = NetworkGetNetworkIdFromEntity(entity);
                 if (netId != 0 && _netIdToDbId.TryGetValue(netId, out int dbId))
                 {
                     Debug.WriteLine($"[VehicleManager] World vehicle (DB ID: {dbId}, Entity: {entity}, NetID: {netId}) destroyed. Scheduling respawn...");
-
-                    // Remove from reverse lookup since entity is gone
                     _netIdToDbId.Remove(netId);
 
                     if (_worldVehicles.TryGetValue(dbId, out WorldVehicleData data))
@@ -104,11 +115,9 @@ namespace VehicleManager.Server
 
             try
             {
-                // Get all vehicles currently in the world
                 var allVehiclesObj = GetAllVehicles();
                 List<int> allVehicles = new List<int>();
 
-                // Convert to List<int>
                 foreach (var vehObj in allVehiclesObj)
                 {
                     try
@@ -133,7 +142,8 @@ namespace VehicleManager.Server
                     CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.x')) AS DOUBLE)   AS x,
                     CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.y')) AS DOUBLE)   AS y,
                     CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.z')) AS DOUBLE)   AS z,
-                    CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.heading')) AS DOUBLE) AS heading
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.heading')) AS DOUBLE) AS heading,
+                    JSON_UNQUOTE(JSON_EXTRACT(vehicle_data, '$.engine_on')) AS engine_on
                     FROM world_vehicles;";
 
                 _db.Query(sql, new Dictionary<string, object>(), new Action<dynamic>(rows =>
@@ -159,7 +169,8 @@ namespace VehicleManager.Server
                             float dbHeading = Convert.ToSingle(row.heading, CultureInfo.InvariantCulture);
                             string vehicleType = row.vehicle_type ?? "automobile";
 
-                            // Check if a vehicle matching this data already exists in the world
+                            bool engineOn = ParseJsonBoolean(row.engine_on);
+
                             foreach (int veh in allVehicles)
                             {
                                 if (!DoesEntityExist(veh)) continue;
@@ -167,13 +178,11 @@ namespace VehicleManager.Server
                                 uint vehModel = (uint)GetEntityModel(veh);
                                 string vehPlate = GetVehicleNumberPlateText(veh);
 
-                                // Match by model and plate (position can drift)
                                 bool modelMatch = vehModel == modelHash;
                                 bool plateMatch = string.Equals(vehPlate?.Trim(), plate?.Trim(), StringComparison.OrdinalIgnoreCase);
 
                                 if (modelMatch && plateMatch)
                                 {
-                                    // This vehicle already exists in the world!
                                     int netId = NetworkGetNetworkIdFromEntity(veh);
 
                                     _worldVehicles[dbId] = new WorldVehicleData
@@ -186,14 +195,21 @@ namespace VehicleManager.Server
                                         X = dbX,
                                         Y = dbY,
                                         Z = dbZ,
-                                        Heading = dbHeading
+                                        Heading = dbHeading,
+                                        EngineOn = engineOn
                                     };
 
-                                    // Add to reverse lookup using NETWORK ID
                                     _netIdToDbId[netId] = dbId;
 
+                                    // Ensure JSON exists with engine_on
+                                    EnsureVehicleDataRow(dbId, engineOn);
+
+                                    // Register + apply engine state to clients
+                                    TriggerClientEvent("VehicleManager:Client:RegisterWorldVehicle", netId, dbId);
+                                    TriggerClientEvent("VehicleManager:Client:SetWorldVehicleEngineState", netId, engineOn);
+
                                     discovered++;
-                                    Debug.WriteLine($"[VehicleManager] Discovered existing vehicle (DB ID: {dbId}, Entity: {veh}, NetID: {netId}, Plate: {plate})");
+                                    Debug.WriteLine($"[VehicleManager] Discovered existing vehicle (DB ID: {dbId}, Entity: {veh}, NetID: {netId}, Plate: {plate}, EngineOn: {engineOn})");
                                     break;
                                 }
                             }
@@ -213,14 +229,12 @@ namespace VehicleManager.Server
             }
         }
 
-		// Removed [FromSource] TEST IF WORKS
-		private void OnSyncWorldVehiclesForPlayer(Player player)
+        private void OnSyncWorldVehiclesForPlayer(Player player)
         {
             if (player == null) return;
 
             Debug.WriteLine($"[VehicleManager] Syncing {_worldVehicles.Count} world vehicles for player {player.Name}");
 
-            // Send all world vehicles with their DB IDs to client
             foreach (var kvp in _worldVehicles)
             {
                 int dbId = kvp.Key;
@@ -228,8 +242,8 @@ namespace VehicleManager.Server
 
                 if (netId != 0)
                 {
-                    // Send both netId AND dbId to client for proper tracking
                     player.TriggerEvent("VehicleManager:Client:RegisterWorldVehicle", netId, dbId);
+                    player.TriggerEvent("VehicleManager:Client:SetWorldVehicleEngineState", netId, kvp.Value.EngineOn);
                 }
             }
         }
@@ -240,7 +254,6 @@ namespace VehicleManager.Server
         {
             Debug.WriteLine($"[VehicleManager] OnSaveParkedVehicle called - Model: {modelHash}, Plate: {plate}");
 
-            // Check if this vehicle matches an existing world vehicle by model and plate
             var existingVehicle = _worldVehicles.FirstOrDefault(kvp =>
                 kvp.Value.ModelHash == modelHash &&
                 string.Equals(kvp.Value.Plate?.Trim(), plate?.Trim(), StringComparison.OrdinalIgnoreCase)
@@ -248,13 +261,11 @@ namespace VehicleManager.Server
 
             if (existingVehicle.Key != 0)
             {
-                // This is an EXISTING world vehicle being re-parked (position update)
                 Debug.WriteLine($"[VehicleManager] Updating existing world vehicle (DB ID: {existingVehicle.Key})");
 
                 UpdateVehiclePosition(existingVehicle.Key, x, y, z, heading, rx, ry, rz,
                     primaryColor, secondaryColor, customPrimaryRGB, customSecondaryRGB);
 
-                // Update in-memory data (but keep the existing entity ID)
                 _worldVehicles[existingVehicle.Key].X = x;
                 _worldVehicles[existingVehicle.Key].Y = y;
                 _worldVehicles[existingVehicle.Key].Z = z;
@@ -268,24 +279,20 @@ namespace VehicleManager.Server
             }
             else
             {
-                // This is a NEW vehicle being parked for the first time
                 Debug.WriteLine($"[VehicleManager] Parking NEW world vehicle - spawning server-authoritative version");
 
-                // Save to database
                 _vehicleCommands.SaveVehicleToDatabase(player, modelHash, vehicleType, plate, x, y, z, heading, rx, ry, rz, entityId,
                     primaryColor, secondaryColor, customPrimaryRGB, customSecondaryRGB);
 
-                // Spawn a NEW server-authoritative vehicle immediately
                 _ = Task.Run(async () =>
                 {
-                    await Delay(500); // Wait for database insert to complete
+                    await Delay(500);
                     await SpawnNewWorldVehicle(modelHash, vehicleType, plate, x, y, z, heading,
                         primaryColor, secondaryColor, customPrimaryRGB, customSecondaryRGB);
                 });
             }
         }
 
-        // Spawn a server-authoritative vehicle immediately after parking
         private async Task SpawnNewWorldVehicle(uint modelHash, string vehicleType, string plate,
             float x, float y, float z, float heading,
             int primaryColor, int secondaryColor, string customPrimaryRGB, string customSecondaryRGB)
@@ -294,9 +301,11 @@ namespace VehicleManager.Server
             {
                 Debug.WriteLine($"[VehicleManager] SpawnNewWorldVehicle started for model {modelHash}, plate {plate}");
 
-                // Query database to get the DB ID
                 const string sql = @"
-                SELECT id FROM world_vehicles 
+                SELECT 
+                    id,
+                    JSON_UNQUOTE(JSON_EXTRACT(vehicle_data, '$.engine_on')) AS engine_on
+                FROM world_vehicles 
                 WHERE model = @model AND plate = @plate
                 ORDER BY id DESC LIMIT 1;";
 
@@ -327,9 +336,12 @@ namespace VehicleManager.Server
                         if (firstRow != null)
                         {
                             int dbId = Convert.ToInt32(firstRow.id);
+                            bool engineOn = ParseJsonBoolean(firstRow.engine_on);
+
                             Debug.WriteLine($"[VehicleManager] Found DB ID {dbId} for vehicle");
 
-                            // Check if already spawned (race condition protection)
+                            EnsureVehicleDataRow(dbId, engineOn);
+
                             if (_worldVehicles.ContainsKey(dbId))
                             {
                                 Debug.WriteLine($"[VehicleManager] World vehicle {dbId} already spawned, skipping.");
@@ -338,7 +350,6 @@ namespace VehicleManager.Server
 
                             Debug.WriteLine($"[VehicleManager] Creating NEW server-authoritative vehicle for DB ID {dbId}");
 
-                            // Spawn NEW server-authoritative vehicle
                             float zSpawn = z + 1.0f;
                             int veh = Function.Call<int>(Hash.CREATE_VEHICLE_SERVER_SETTER, modelHash, vehicleType, x, y, zSpawn, heading);
 
@@ -348,23 +359,19 @@ namespace VehicleManager.Server
                             {
                                 Debug.WriteLine($"[VehicleManager] Successfully created server vehicle (Entity: {veh})");
 
-                                // Set plate
                                 if (!string.IsNullOrEmpty(plate))
                                 {
                                     SetVehicleNumberPlateText(veh, plate);
                                     Debug.WriteLine($"[VehicleManager] Set plate to: {plate}");
                                 }
 
-                                // Apply colors
                                 ApplyVehicleColors(veh, primaryColor, secondaryColor, customPrimaryRGB, customSecondaryRGB);
 
-                                // Get network ID
                                 int netId = NetworkGetNetworkIdFromEntity(veh);
                                 Debug.WriteLine($"[VehicleManager] Network ID for entity {veh}: {netId}");
 
                                 if (netId != 0)
                                 {
-                                    // Register in tracking
                                     _worldVehicles[dbId] = new WorldVehicleData
                                     {
                                         NetId = netId,
@@ -379,18 +386,18 @@ namespace VehicleManager.Server
                                         PrimaryColor = primaryColor,
                                         SecondaryColor = secondaryColor,
                                         CustomPrimaryRGB = customPrimaryRGB,
-                                        CustomSecondaryRGB = customSecondaryRGB
+                                        CustomSecondaryRGB = customSecondaryRGB,
+                                        EngineOn = engineOn
                                     };
 
-                                    // Add to reverse lookup using NETWORK ID
                                     _netIdToDbId[netId] = dbId;
                                     Debug.WriteLine($"[VehicleManager] ✅ REGISTERED: _netIdToDbId[{netId}] = {dbId}");
                                     Debug.WriteLine($"[VehicleManager] Total tracked network IDs: {_netIdToDbId.Count}");
 
-                                    // Tell clients to register this vehicle with its DB ID
                                     TriggerClientEvent("VehicleManager:Client:RegisterWorldVehicle", netId, dbId);
+                                    TriggerClientEvent("VehicleManager:Client:SetWorldVehicleEngineState", netId, engineOn);
 
-                                    Debug.WriteLine($"[VehicleManager] Successfully spawned NEW world vehicle (DB ID: {dbId}, Entity: {veh}, NetID: {netId})");
+                                    Debug.WriteLine($"[VehicleManager] Successfully spawned NEW world vehicle (DB ID: {dbId}, Entity: {veh}, NetID: {netId}, EngineOn: {engineOn})");
                                 }
                                 else
                                 {
@@ -424,19 +431,15 @@ namespace VehicleManager.Server
         {
             Debug.WriteLine($"[VehicleManager] OnUnparkVehicle called for NetID {vehicleNetId}");
 
-            // Look up the DB ID from the NETWORK ID
             if (_netIdToDbId.TryGetValue(vehicleNetId, out int dbId))
             {
                 if (_worldVehicles.TryGetValue(dbId, out WorldVehicleData vehicleData))
                 {
-                    // Remove from database
                     _vehicleCommands.RemoveVehicleFromDatabase(player, vehicleData.ModelHash, vehicleData.Plate);
 
-                    // Remove from memory tracking
                     _worldVehicles.Remove(dbId);
                     _netIdToDbId.Remove(vehicleNetId);
 
-                    // Get entity from network ID and delete it
                     int vehicleEntity = NetworkGetEntityFromNetworkId(vehicleNetId);
                     if (vehicleEntity != 0 && DoesEntityExist(vehicleEntity))
                     {
@@ -459,7 +462,6 @@ namespace VehicleManager.Server
             }
         }
 
-        // Handle client query for whether a vehicle is a world vehicle
         private void OnIsWorldVehicle([FromSource] Player player, int vehicleNetId, string callbackEvent)
         {
             try
@@ -474,7 +476,6 @@ namespace VehicleManager.Server
                     Debug.WriteLine($"[VehicleManager]   NetID {kvp.Key} => DB ID {kvp.Value}");
                 }
 
-                // Check if this network ID is tracked as a world vehicle
                 if (_netIdToDbId.TryGetValue(vehicleNetId, out int dbId))
                 {
                     Debug.WriteLine($"[VehicleManager] ✅ NetID {vehicleNetId} IS a world vehicle (DB ID: {dbId})");
@@ -496,40 +497,110 @@ namespace VehicleManager.Server
             }
         }
 
-		private void UpdateVehiclePosition(int dbId, float x, float y, float z, float heading, float rx, float ry, float rz,
-	    int primaryColor, int secondaryColor, string customPrimaryRGB, string customSecondaryRGB)
-		{
-			string J(double v) => v.ToString(CultureInfo.InvariantCulture);
-			string positionJson = $"{{\"x\":{J(x)},\"y\":{J(y)},\"z\":{J(z)},\"heading\":{J(heading)}}}";
-			string rotationJson = $"{{\"x\":{J(rx)},\"y\":{J(ry)},\"z\":{J(rz)}}}";
+        // Persist engine_on as JSON boolean and broadcast
+        private void OnUpdateWorldVehicleEngineState([FromSource] Player player, int vehicleNetId, bool engineOn)
+        {
+            try
+            {
+                if (!_netIdToDbId.TryGetValue(vehicleNetId, out int dbId))
+                {
+                    Debug.WriteLine($"[VehicleManager] Engine state update ignored - NetID {vehicleNetId} not tracked as world vehicle.");
+                    return;
+                }
 
-			const string sql = @"
+                UpdateVehicleEngineState(dbId, engineOn);
+
+                if (_worldVehicles.TryGetValue(dbId, out var data))
+                {
+                    data.EngineOn = engineOn;
+                }
+
+                TriggerClientEvent("VehicleManager:Client:SetWorldVehicleEngineState", vehicleNetId, engineOn);
+
+                Debug.WriteLine($"[VehicleManager] Updated engine_on={engineOn} for DB ID {dbId} (NetID {vehicleNetId})");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VehicleManager] Error in OnUpdateWorldVehicleEngineState: {ex.Message}");
+            }
+        }
+
+        private void UpdateVehicleEngineState(int dbId, bool engineOn)
+        {
+            const string sql = @"
+                UPDATE world_vehicles
+                SET vehicle_data = JSON_SET(COALESCE(vehicle_data, JSON_OBJECT()), '$.engine_on', CAST(@engine_on AS JSON))
+                WHERE id = @id;";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["@id"] = dbId,
+                ["@engine_on"] = engineOn ? "true" : "false"
+            };
+
+            _db.Query(sql, parameters, new Action<dynamic>(_ =>
+            {
+                Debug.WriteLine($"[VehicleManager] Persisted engine_on={engineOn} for DB ID {dbId}");
+            }));
+        }
+
+        private void EnsureVehicleDataRow(int dbId, bool defaultEngineOn)
+        {
+            const string sql = @"
+                UPDATE world_vehicles
+                SET vehicle_data = JSON_SET(
+                    COALESCE(vehicle_data, JSON_OBJECT()),
+                    '$.engine_on',
+                    COALESCE(JSON_EXTRACT(vehicle_data, '$.engine_on'), CAST(@engine_on AS JSON))
+                )
+                WHERE id = @id;";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["@id"] = dbId,
+                ["@engine_on"] = defaultEngineOn ? "true" : "false"
+            };
+
+            _db.Query(sql, parameters, new Action<dynamic>(_ =>
+            {
+                Debug.WriteLine($"[VehicleManager] Ensured vehicle_data JSON for DB ID {dbId}");
+            }));
+        }
+
+        private void UpdateVehiclePosition(int dbId, float x, float y, float z, float heading, float rx, float ry, float rz,
+            int primaryColor, int secondaryColor, string customPrimaryRGB, string customSecondaryRGB)
+        {
+            string J(double v) => v.ToString(CultureInfo.InvariantCulture);
+            string positionJson = $"{{\"x\":{J(x)},\"y\":{J(y)},\"z\":{J(z)},\"heading\":{J(heading)}}}";
+            string rotationJson = $"{{\"x\":{J(rx)},\"y\":{J(ry)},\"z\":{J(rz)}}}";
+
+            const string sql = @"
         UPDATE world_vehicles 
         SET position = @position, rotation = @rotation,
             primary_color = @primary_color, secondary_color = @secondary_color,
             custom_primary_rgb = @custom_primary_rgb, custom_secondary_rgb = @custom_secondary_rgb
         WHERE id = @id;";
 
-			var parameters = new Dictionary<string, object>
-			{
-				["@id"] = dbId,
-				["@position"] = positionJson,
-				["@rotation"] = rotationJson,
-				["@primary_color"] = primaryColor,
-				["@secondary_color"] = secondaryColor,
-				["@custom_primary_rgb"] = string.IsNullOrEmpty(customPrimaryRGB) ? null : customPrimaryRGB,
-				["@custom_secondary_rgb"] = string.IsNullOrEmpty(customSecondaryRGB) ? null : customSecondaryRGB
-			};
+            var parameters = new Dictionary<string, object>
+            {
+                ["@id"] = dbId,
+                ["@position"] = positionJson,
+                ["@rotation"] = rotationJson,
+                ["@primary_color"] = primaryColor,
+                ["@secondary_color"] = secondaryColor,
+                ["@custom_primary_rgb"] = string.IsNullOrEmpty(customPrimaryRGB) ? null : customPrimaryRGB,
+                ["@custom_secondary_rgb"] = string.IsNullOrEmpty(customSecondaryRGB) ? null : customSecondaryRGB
+            };
 
-			Debug.WriteLine($"[VehicleManager] Updating vehicle position and colors for DB ID {dbId}");
+            Debug.WriteLine($"[VehicleManager] Updating vehicle position and colors for DB ID {dbId}");
 
-			_db.Query(sql, parameters, new Action<dynamic>(_ =>
-			{
-				Debug.WriteLine($"[VehicleManager] Updated position and colors for vehicle DB ID {dbId}");
-			}));
-		}
+            _db.Query(sql, parameters, new Action<dynamic>(_ =>
+            {
+                Debug.WriteLine($"[VehicleManager] Updated position and colors for vehicle DB ID {dbId}");
+            }));
+        }
 
-		private async Task RespawnWorldVehicle(int dbId, WorldVehicleData data)
+        private async Task RespawnWorldVehicle(int dbId, WorldVehicleData data)
         {
             await Delay(5000);
 
@@ -552,7 +623,6 @@ namespace VehicleManager.Server
                         SetVehicleNumberPlateText(veh, data.Plate);
                     }
 
-                    // Apply colors
                     ApplyVehicleColors(veh, data.PrimaryColor, data.SecondaryColor, data.CustomPrimaryRGB, data.CustomSecondaryRGB);
 
                     int netId = NetworkGetNetworkIdFromEntity(veh);
@@ -561,11 +631,12 @@ namespace VehicleManager.Server
                         _worldVehicles[dbId].NetId = netId;
                         _worldVehicles[dbId].EntityId = veh;
 
-                        // Update reverse lookup with NEW network ID
                         _netIdToDbId[netId] = dbId;
 
                         TriggerClientEvent("VehicleManager:Client:RegisterWorldVehicle", netId, dbId);
-                        Debug.WriteLine($"[VehicleManager] Respawned world vehicle with colors (DB ID: {dbId}, Entity: {veh}, NetID: {netId})");
+                        TriggerClientEvent("VehicleManager:Client:SetWorldVehicleEngineState", netId, data.EngineOn);
+
+                        Debug.WriteLine($"[VehicleManager] Respawned world vehicle with colors (DB ID: {dbId}, Entity: {veh}, NetID: {netId}, EngineOn: {data.EngineOn})");
                     }
                 }
             }
@@ -579,7 +650,7 @@ namespace VehicleManager.Server
         {
             while (true)
             {
-                await Delay(30000); // Check every 30 seconds
+                await Delay(30000);
 
                 Debug.WriteLine($"[VehicleManager] MonitorWorldVehicles: Checking {_worldVehicles.Count} vehicles...");
 
@@ -591,17 +662,14 @@ namespace VehicleManager.Server
                         var data = kvp.Value;
                         int entity = data.EntityId;
 
-                        // Only respawn if entity doesn't exist (destroyed)
                         if (entity == 0)
                         {
                             await RespawnWorldVehicle(dbId, data);
                         }
                         else if (!DoesEntityExist(entity))
                         {
-
-                            // Clean up reverse lookup
-                            _netIdToDbId.Remove(entity);
-
+                            // Note: key here is a NetID, not an entity handle. We can't remove by entity.
+                            // Clean will happen when respawn updates _netIdToDbId with new NetID.
                             await RespawnWorldVehicle(dbId, data);
                         }
                     }
@@ -642,9 +710,9 @@ namespace VehicleManager.Server
                 CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.x')) AS DOUBLE)   AS x,
                 CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.y')) AS DOUBLE)   AS y,
                 CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.z')) AS DOUBLE)   AS z,
-                CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.heading')) AS DOUBLE) AS heading
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(position, '$.heading')) AS DOUBLE) AS heading,
+                JSON_UNQUOTE(JSON_EXTRACT(vehicle_data, '$.engine_on')) AS engine_on
                 FROM world_vehicles;";
-
 
                 _db.Query(sql, new Dictionary<string, object>(), new Action<dynamic>(rows =>
                 {
@@ -657,7 +725,6 @@ namespace VehicleManager.Server
                         {
                             int dbId = Convert.ToInt32(row.id);
 
-                            // Skip if already tracked
                             if (_worldVehicles.ContainsKey(dbId))
                             {
                                 skipped++;
@@ -683,6 +750,8 @@ namespace VehicleManager.Server
                             string customPrimaryRGB = row.custom_primary_rgb;
                             string customSecondaryRGB = row.custom_secondary_rgb;
 
+                            bool engineOn = ParseJsonBoolean(row.engine_on);
+
                             float zSpawn = z + 1.0f;
 
                             int veh = Function.Call<int>(Hash.CREATE_VEHICLE_SERVER_SETTER, modelHash, vehicleType, x, y, zSpawn, heading);
@@ -694,7 +763,6 @@ namespace VehicleManager.Server
                                     SetVehicleNumberPlateText(veh, plate);
                                 }
 
-                                // Apply colors
                                 ApplyVehicleColors(veh, primaryColor, secondaryColor, customPrimaryRGB, customSecondaryRGB);
 
                                 int netId = NetworkGetNetworkIdFromEntity(veh);
@@ -714,14 +782,17 @@ namespace VehicleManager.Server
                                         PrimaryColor = primaryColor,
                                         SecondaryColor = secondaryColor,
                                         CustomPrimaryRGB = customPrimaryRGB,
-                                        CustomSecondaryRGB = customSecondaryRGB
+                                        CustomSecondaryRGB = customSecondaryRGB,
+                                        EngineOn = engineOn
                                     };
 
-                                    // Add to reverse lookup using NETWORK ID
                                     _netIdToDbId[netId] = dbId;
 
                                     TriggerClientEvent("VehicleManager:Client:RegisterWorldVehicle", netId, dbId);
+                                    TriggerClientEvent("VehicleManager:Client:SetWorldVehicleEngineState", netId, engineOn);
                                 }
+
+                                EnsureVehicleDataRow(dbId, engineOn);
 
                                 count++;
                             }
@@ -755,10 +826,8 @@ namespace VehicleManager.Server
 
         private void ApplyVehicleColors(int veh, int primaryColor, int secondaryColor, string customPrimaryRGB, string customSecondaryRGB)
         {
-            // Apply standard colors
             SetVehicleColours(veh, primaryColor, secondaryColor);
 
-            // Apply custom RGB colors if provided
             if (!string.IsNullOrEmpty(customPrimaryRGB))
             {
                 var rgb = customPrimaryRGB.Split(',');

@@ -49,6 +49,13 @@ namespace VehicleManager.Server.Commands
 				// Request vehicle data from client
 				player.TriggerEvent("VehicleManager:Client:RequestUnparkVehicle");
 			}), false);
+
+			// Toggle engine state of vehicle being driven
+			RegisterCommand("engine", new Action<int, List<object>, string>((src, args, raw) =>
+			{
+				var player = _players[src];
+				player.TriggerEvent("VehicleManager:Client:ToggleEngine");
+			}), false);
 		}
 
 		// Called by server with vehicle data - entity ID is NOT saved to database

@@ -21,5 +21,8 @@ namespace VehicleManager.Server.Models
 		public int SecondaryColor { get; set; }
 		public string CustomPrimaryRGB { get; set; }
 		public string CustomSecondaryRGB { get; set; }
+
+		// Vehicle State Data
+		public bool EngineOn { get; set; }
 	}
 }
