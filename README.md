@@ -20,6 +20,7 @@ It currently provides separate modules for:
 - **Armory** – Handles weapons, inventory, and related logic.
 - **UI** - Manages all UI logic for different modules.
 - **VehicleManager** - Manages vehicle creation, client-side and server-side, and other aspects of a vehicle, such as ownership, colors etc...
+- **AdminManager** - Provides with general admin level tools
 
 Each module is structured as its own solution inside the framework but is integrated under a single Git repository for easy development and deployment.  
 
