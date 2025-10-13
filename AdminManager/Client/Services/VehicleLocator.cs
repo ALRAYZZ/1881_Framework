@@ -21,11 +21,11 @@ namespace AdminManager.Client.Services
 
 		public void RequestNearestVehicle()
 		{
-			// Ask VehicleManager to find nearest vehicle
-			BaseScript.TriggerServerEvent("VehicleManager:Client:GetNearestVehicle", "AdminManager:NearestVehicleResponse");
+			// Trigger CLIENT event to ask VehicleManager to find nearest vehicle
+			BaseScript.TriggerEvent("VehicleManager:Client:GetNearestVehicle", "AdminManager:VehicleLocator:NearestVehicleResponse");
 		}
 		
-		public void OnNearestVehicleResponse(int vehicleId, float distance)
+		private void OnNearestVehicleResponse(int vehicleId, float distance)
 		{
 			if (vehicleId == 0)
 			{
@@ -33,7 +33,27 @@ namespace AdminManager.Client.Services
 				return;
 			}
 
-			ChatHelper.PrintInfo($"Nearest vehicle ID: {vehicleId}, Distance: {distance} meters.");
+			// Get additional vehicle information
+			if (DoesEntityExist(vehicleId))
+			{
+				uint modelHash = (uint)GetEntityModel(vehicleId);
+				string modelName = GetDisplayNameFromVehicleModel(modelHash);
+				string plate = GetVehicleNumberPlateText(vehicleId);
+				var coords = GetEntityCoords(vehicleId, true);
+				int netId = NetworkGetNetworkIdFromEntity(vehicleId);
+
+				ChatHelper.PrintInfo($"=== Nearest Vehicle Info ===");
+				ChatHelper.PrintInfo($"Entity ID: {vehicleId}");
+				ChatHelper.PrintInfo($"Network ID: {netId}");
+				ChatHelper.PrintInfo($"Model: {modelName} ({modelHash})");
+				ChatHelper.PrintInfo($"Plate: {plate}");
+				ChatHelper.PrintInfo($"Distance: {distance:F2}m");
+				ChatHelper.PrintInfo($"Position: X={coords.X:F2}, Y={coords.Y:F2}, Z={coords.Z:F2}");
+			}
+			else
+			{
+				ChatHelper.PrintInfo($"Nearest vehicle ID: {vehicleId}, Distance: {distance:F2}m (entity no longer exists)");
+			}
 		}
 	}
 }

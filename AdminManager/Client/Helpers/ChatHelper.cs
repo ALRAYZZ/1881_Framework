@@ -10,7 +10,7 @@ namespace AdminManager.Client.Helpers
 		{
 			try
 			{
-				TriggerEvent("chat:addMessage", new
+				BaseScript.TriggerEvent("chat:addMessage", new
 				{
 					color = new[] { 255, 200, 0 },
 					args = new[] { "[AdminManager]", message }
