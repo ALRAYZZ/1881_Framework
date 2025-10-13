@@ -64,16 +64,34 @@ namespace VehicleManager.Client.Events
 				ApplyColorsToNetworkedVehicle(netId, primaryColor, secondaryColor);
 			});
 
+			_eventHandlers["VehicleManager:Client:GetNearestVehicle"] += new Action<string>(OnGetNearestVehicleRequest);
+
 			Debug.WriteLine("[VehicleManager] Client event handlers registered.");
 		}
 
-		private void DeleteNearestVehicle()
+		private void OnGetNearestVehicleRequest(string replyEvent)
+		{
+			int veh = FindNearestVehicle();
+			float dist = 0.0f;
+
+			if (veh != 0)
+			{
+				var ped = Game.PlayerPed;
+				var pos = ped.Position;
+				var vehPos = GetEntityCoords(veh, true);
+				dist = GetDistanceBetweenCoords(pos.X, pos.Y, pos.Z, vehPos.X, vehPos.Y, vehPos.Z, true);
+			}
+
+			// Reply to whoever asked (client to client event)
+			TriggerEvent(replyEvent, veh, dist);
+		}
+
+		private int FindNearestVehicle()
 		{
 			var ped = Game.PlayerPed;
 			var pos = ped.Position;
 			float searchRadius = 5.0f;
 
-			// Find closest vehicle within radius
 			int closestVehicle = 0;
 			float closestDistance = searchRadius;
 
@@ -93,7 +111,7 @@ namespace VehicleManager.Client.Events
 						if (distance < closestDistance)
 						{
 							closestDistance = distance;
-							closestVehicle = currentVehicle; // Store the closest vehicle handle
+							closestVehicle = currentVehicle;
 						}
 					}
 
@@ -108,16 +126,30 @@ namespace VehicleManager.Client.Events
 				EndFindVehicle(entityEnum);
 			}
 
+			return closestVehicle;
+		}
+
+		private void DeleteNearestVehicle()
+		{
+			var ped = Game.PlayerPed;
+			var pos = ped.Position;
+			float searchRadius = 5.0f;
+
+			int closestVehicle = FindNearestVehicle();
+
 			if (closestVehicle != 0)
 			{
-				Debug.WriteLine($"[VehicleManager] Deleting vehicle {closestVehicle} at distance {closestDistance}m");
+				var vehPos = GetEntityCoords(closestVehicle, true);
+				float distance = GetDistanceBetweenCoords(pos.X, pos.Y, pos.Z, vehPos.X, vehPos.Y, vehPos.Z, true);
+
+				Debug.WriteLine($"[VehicleManager] Deleting vehicle {closestVehicle} at distance {distance}m");
 				_vehicleFactory.DeleteVehicle(closestVehicle);
-				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { $"Deleted vehicle at {closestDistance:F2}m away." } });
+				TriggerEvent("chat:addMessage", new { args = new[] { $"Deleted vehicle at {distance:F2}m away." } });
 			}
 			else
 			{
 				Debug.WriteLine($"[VehicleManager] No vehicle found within {searchRadius}m");
-				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { $"No vehicle found within {searchRadius}m." } });
+				TriggerEvent("chat:addMessage", new { args = new[] { $"No vehicle found within {searchRadius}m." } });
 			}
 		}
 
