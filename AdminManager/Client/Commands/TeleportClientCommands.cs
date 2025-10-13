@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using AdminManager.Client.Helpers;
 using static CitizenFX.Core.Native.API;
+using AdminManager.Client.Services;
 
 namespace AdminManager.Client.Commands
 {
@@ -15,7 +16,7 @@ namespace AdminManager.Client.Commands
         public TeleportClientCommands(EventHandlerDictionary eventHandlers)
         {
             _eventHandlers = eventHandlers;
-            _vehicleLocator = new VehicleLocator(); // USE VEHICLE MANAGER
+            _vehicleLocator = new VehicleLocator(_eventHandlers);
 
             // Register commands
             RegisterCommand("tpent", new Action<int, List<object>, string>(CmdTpEntityId), true);
