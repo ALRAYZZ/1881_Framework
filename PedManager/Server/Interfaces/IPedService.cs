@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace PedManager.Server
+namespace PedManager.Server.Interfaces
 {
 	public interface IPedService
 	{

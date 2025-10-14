@@ -6,16 +6,20 @@ using CitizenFX.Core;
 using static CitizenFX.Core.Native.API;
 using System.Globalization;
 using System.Linq;
+using PedManager.Server.Services;
+using PedManager.Server.Interfaces;
 
 namespace PedManager.Server
 {
     public class ServerMain : BaseScript
     {
         private readonly IPedService _pedService;
+        private readonly PersistentPedService _persistentPedService;
 
         public ServerMain()
         {
             var db = Exports["Database"];
+            _persistentPedService = new PersistentPedService(db, EventHandlers);
             _pedService = new PedService(db);
 
             Debug.WriteLine("[PedManager] Server initialized.");

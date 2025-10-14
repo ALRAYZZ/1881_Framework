@@ -8,9 +8,11 @@ namespace PedManager.Client
     public class ClientMain : BaseScript
     {
         private readonly IPedModelApplier _pedModelApplier;
+        private readonly PersistentPedClient _persistentPedClient;
 
         public ClientMain()
         {
+            _persistentPedClient = new PersistentPedClient(EventHandlers);
             _pedModelApplier = new PedModelApplier();
 
             bool spawned = false;

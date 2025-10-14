@@ -4,9 +4,10 @@ using System.Linq;
 using System.Linq.Expressions;
 using CitizenFX.Core;
 using static CitizenFX.Core.Native.API;
-using Newtonsoft.Json; // NEW
+using Newtonsoft.Json;
+using PedManager.Server.Interfaces;
 
-namespace PedManager.Server
+namespace PedManager.Server.Services
 {
     public sealed class PedService : IPedService
     {
