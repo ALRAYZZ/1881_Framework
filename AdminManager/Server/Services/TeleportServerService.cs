@@ -2,19 +2,17 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using static CitizenFX.Core.Native.API;
 using AdminManager.Server.StaticHelpers;
+using static CitizenFX.Core.Native.API;
 
 namespace AdminManager.Server.Services
 {
 	internal sealed class TeleportServerService
 	{
-		private readonly BaseScript _script;
-
-		public TeleportServerService(BaseScript script)
+		public TeleportServerService()
 		{
-			_script = script;
 		}
+
 
 		public void OnTeleportByEntityId(Player player, int entityId, float x, float y, float z)
 		{

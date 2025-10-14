@@ -21,65 +21,88 @@ namespace AdminManager.Client.Commands
 			// Register commands
 
 			// BRING commands
-			RegisterCommand("bringent", new Action<int, List<object>, string>(CmdTpEntityId), false);
-            RegisterCommand("bringnet", new Action<int, List<object>, string>(CmdTpNetId), false);
+			RegisterCommand("bringent", new Action<int, List<object>, string>(BringEntityId), false);
+            RegisterCommand("bringnet", new Action<int, List<object>, string>(BringNetId), false);
 
 			// GO commands
-			RegisterCommand("gottopos", new Action<int, List<object>, string>(CmdTpPos), false);
-            RegisterCommand("gottoent", new Action<int, List<object>, string>(CmdGoToEntityId), false);
-            RegisterCommand("gottonet", new Action<int, List<object>, string>(CmdGoToNetId), false);
+			RegisterCommand("gottopos", new Action<int, List<object>, string>(GoToPos), false);
+            RegisterCommand("gottoent", new Action<int, List<object>, string>(GoToEntityId), false);
+            RegisterCommand("gottonet", new Action<int, List<object>, string>(GoToNetId), false);
 
 
 
-            RegisterCommand("getinfo", new Action<int, List<object>, string>(CmdGetInfo), false);
+            RegisterCommand("getinfo", new Action<int, List<object>, string>(GetInfo), false);
 
             _eventHandlers["AdminManager:Teleport:Result"] += new Action<bool, string>(OnTeleportResult);
         }
 
-        private void CmdGetInfo(int src, List<object> args, string raw)
+        private void GetInfo(int src, List<object> args, string raw)
         {
             _vehicleLocator.RequestNearestVehicle();
 		}
 
-		private void CmdTpEntityId(int src, List<object> args, string raw)
+		private void BringEntityId(int src, List<object> args, string raw)
         {
-            if (!ValidateArgs(args, 4, "tpent <entityID> <x> <y> <z>")) return;
+            if (!ValidateArgs(args, 1, "bringent <entityID>")) return;
 
-            int entityId;
-            float x, y, z;
-
-            if (!int.TryParse(args[0]?.ToString(), out entityId) ||
-                !TryParseFloat(args[1], out x) ||
-                !TryParseFloat(args[2], out y) ||
-                !TryParseFloat(args[3], out z))
+            if (!int.TryParse(args[0]?.ToString(), out int entityId))
             {
-                ChatHelper.PrintError("Invalid argument types for tpent command.");
+                ChatHelper.PrintError("Invalid argument types for bringent command.");
+                return;
+            }
+            int ped = PlayerPedId();
+            if (ped == 0)
+            {
+                ChatHelper.PrintError("Player ped not found.");
                 return;
             }
 
-            BaseScript.TriggerServerEvent("AdminManager:Teleport:EntityID", entityId, x, y, z);
-        }
-
-        private void CmdTpNetId(int src, List<object> args, string raw)
-        {
-            if (!ValidateArgs(args, 4, "tpnet <netID> <x> <y> <z>")) return;
-
-            int netId;
-            float x, y, z;
-
-            if (!int.TryParse(args[0]?.ToString(), out netId) ||
-                !TryParseFloat(args[1], out x) ||
-                !TryParseFloat(args[2], out y) ||
-                !TryParseFloat(args[3], out z))
+            if (entityId == 0 || !DoesEntityExist(entityId))
             {
-                ChatHelper.PrintError("Invalid argument types for tpnet command.");
+                ChatHelper.PrintError($"No entity found with Entity ID: {entityId}");
                 return;
             }
 
-            BaseScript.TriggerServerEvent("AdminManager:Teleport:NetID", netId, x, y, z);
-        }
+            if (!TryRequestControlOfEntity(entityId, 1000))
+            {
+                ChatHelper.PrintError($"Failed to gain control of entity with Entity ID: {entityId}");
+                return;
+			}
 
-        private void CmdTpPos(int src, List<object> args, string raw)
+            Vector3 pos = GetEntityCoords(ped, false);
+            SetEntityCoords(entityId, pos.X, pos.Y, pos.Z, false, false, false, true);
+		}
+
+		private void BringNetId(int src, List<object> args, string raw)
+        {
+            if (!ValidateArgs(args, 1, "bringnet <netID>")) return;
+
+            if (!int.TryParse(args[0]?.ToString(), out int netId))
+            {
+                ChatHelper.PrintError("Invalid argument types for bringnet command.");
+                return;
+            }
+            int ped = PlayerPedId();
+            if (ped == 0)
+            {
+                ChatHelper.PrintError("Player ped not found.");
+                return;
+			}
+
+            if (NetworkDoesNetworkIdExist(netId))
+            {
+                int veh = ResolveVehicleFromNetId(netId);
+                if (veh != 0 && TryRequestControlOfEntity(veh, 1000))
+                {
+                    Vector3 pos = GetEntityCoords(ped, false);
+                    SetEntityCoords(veh, pos.X, pos.Y, pos.Z, false, false, false, true);
+                    ChatHelper.PrintSuccess($"Brought entity with Net ID: {netId} to your position.");
+                    return;
+                }
+            }
+		}
+
+		private void GoToPos(int src, List<object> args, string raw)
         {
             if (!ValidateArgs(args, 3, "tppos <x> <y> <z>")) return;
 
@@ -104,27 +127,33 @@ namespace AdminManager.Client.Commands
             ChatHelper.PrintInfo($"Teleported to position: {x}, {y}, {z}");
         }
 
-        private void CmdGoToEntityId(int src, List<object> args, string raw)
+        private void GoToEntityId(int src, List<object> args, string raw)
         {
             if (!ValidateArgs(args, 1, "gotoent <entityID>")) return;
-            int entityId;
-            if (!int.TryParse(args[0]?.ToString(), out entityId))
+            if (!int.TryParse(args[0]?.ToString(), out int entityId))
             {
                 ChatHelper.PrintError("Invalid argument type for gotoent command.");
                 return;
             }
+
+            if (!DoesEntityExist(entityId))
+            {
+                ChatHelper.PrintError($"No entity found with Entity ID: {entityId}");
+                return;
+            }
+
             int ped = PlayerPedId();
             if (ped == 0)
             {
                 ChatHelper.PrintError("Player ped not found.");
                 return;
 			}
-            Vector3 pos = GetEntityCoords(entityId, false);
 
+            Vector3 pos = GetEntityCoords(entityId, false);
 			SetEntityCoords(ped, pos.X, pos.Y, pos.Z, false, false, false, true);
 		}
 
-        private void CmdGoToNetId(int src, List<object> args, string raw)
+        private void GoToNetId(int src, List<object> args, string raw)
         {
             if (!ValidateArgs(args, 1, "gotonet <netID>")) return;
             int netId;
@@ -149,7 +178,42 @@ namespace AdminManager.Client.Commands
             SetEntityCoords(ped, pos.X, pos.Y, pos.Z, false, false, false, true);
 		}
 
+        private static bool TryRequestControlOfEntity(int entity, int timeoutMs = 500)
+        {
+            if (entity == 0 || !DoesEntityExist(entity)) return false;
 
+            int end = GetGameTimer() + timeoutMs;
+
+            NetworkRequestControlOfEntity(entity);
+
+            while (!NetworkHasControlOfEntity(entity) && GetGameTimer() < end)
+            {
+                NetworkRequestControlOfEntity(entity);
+                Wait(0);
+			}
+
+            return NetworkHasControlOfEntity(entity);
+		}
+
+        private static int ResolveVehicleFromNetId(int netId)
+        {
+            if (!NetworkDoesEntityExistWithNetworkId(netId)) return 0;
+
+            int ent = NetworkGetEntityFromNetworkId(netId);
+            if (ent == 0 || !DoesEntityExist(ent)) return 0;
+
+            if (IsEntityAVehicle(ent)) return ent;
+
+            if (IsEntityAPed(ent))
+            {
+                int veh = GetVehiclePedIsIn(ent, false);
+                if (veh != 0 && DoesEntityExist(veh))
+                {
+                    return veh;
+                }
+            }
+            return 0;
+        }
 
 		private void OnTeleportResult(bool success, string message)
         {
