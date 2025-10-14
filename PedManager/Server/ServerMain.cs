@@ -25,6 +25,7 @@ namespace PedManager.Server
             Debug.WriteLine("[PedManager] Server initialized.");
 
             RegisterCommand("setped", new Action<int, List<object>, string>(OnSetPedCommand), true);
+            RegisterCommand("persistped", new Action<int, List<object>, string>(OnPersistPedCommand), true);
 
             EventHandlers["PedManager:Server:ApplyPed"] += new Action<string, string>((serverId, model) =>
             {
@@ -83,6 +84,9 @@ namespace PedManager.Server
                 }
             });
 
+            // Handle client callback with spawn position
+            EventHandlers["PedManager:Server:SpawnPersistentPed"] += new Action<Player, string, float, float, float, float>(OnSpawnPersistentPedCallback);
+
             // If PlayerCore already spawned with the correct model (from state), skip re-applying to avoid double swap
             EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerCoreSpawned);
         }
@@ -112,11 +116,11 @@ namespace PedManager.Server
 
         private void OnSetPedCommand(int src, List<object> args, string raw)
         {
-			// Accepts:
-			// - /setped with no args to open ped menu for self
-			// - /setped <serverId> <ped_name>
-			// - /setped <ped_name> for self
-			if (args == null || args.Count == 0)
+            // Accepts:
+            // - /setped with no args to open ped menu for self
+            // - /setped <serverId> <ped_name>
+            // - /setped <ped_name> for self
+            if (args == null || args.Count == 0)
             {
                 TriggerEvent("PedManager:Server:OpenPedMenu", src);
                 return;
@@ -128,7 +132,7 @@ namespace PedManager.Server
 
             if (int.TryParse(firstArg, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId))
             {
-				// First arg is a number, assume targetId
+                // First arg is a number, assume targetId
                 targetId = parsedId;
 
                 if (args.Count < 2)
@@ -149,10 +153,10 @@ namespace PedManager.Server
                 }
 
                 targetId = src;
-				pedName = string.Join(" ", args.Select(a => a?.ToString() ?? string.Empty)).Trim().Trim('"');
-			}
+                pedName = string.Join(" ", args.Select(a => a?.ToString() ?? string.Empty)).Trim().Trim('"');
+            }
 
-			if (string.IsNullOrWhiteSpace(pedName))
+            if (string.IsNullOrWhiteSpace(pedName))
             {
                 Reply(src, "Invalid ped name.");
                 return;
@@ -167,6 +171,67 @@ namespace PedManager.Server
 
             _pedService.SetPedFor(target, pedName); // persists
             Reply(src, $"Set ped for player {targetId} to {pedName}.");
+        }
+
+        private void OnPersistPedCommand(int src, List<object> args, string raw)
+        {
+            // Usage: /persistped <pedmodel>
+            if (src == 0)
+            {
+                Debug.WriteLine("[PedManager] persistped command cannot be used from console.");
+                return;
+            }
+
+            if (args == null || args.Count == 0)
+            {
+                Reply(src, "Usage: /persistped <pedmodel>");
+                return;
+            }
+
+            var pedModel = string.Join(" ", args.Select(a => a?.ToString() ?? string.Empty)).Trim().Trim('"');
+
+            if (string.IsNullOrWhiteSpace(pedModel))
+            {
+                Reply(src, "Invalid ped model.");
+                return;
+            }
+
+            var player = Players.FirstOrDefault(p => p.Handle == src.ToString());
+            if (player == null)
+            {
+                Debug.WriteLine($"[PedManager] Player {src} not found for persistped command.");
+                return;
+            }
+
+            // Request spawn position from client (player's position + forward offset)
+            player.TriggerEvent("PedManager:Client:RequestPersistentPedSpawn", pedModel);
+        }
+
+        private void OnSpawnPersistentPedCallback([FromSource] Player player, string pedModel, float x, float y, float z, float heading)
+        {
+            if (player == null)
+            {
+                Debug.WriteLine("[PedManager] OnSpawnPersistentPedCallback: player is null.");
+                return;
+            }
+
+            int src = int.Parse(player.Handle);
+            Debug.WriteLine($"[PedManager] Spawning persistent ped '{pedModel}' at ({x}, {y}, {z}, {heading}) by player {src}");
+
+            _persistentPedService.AddPersistentPed(pedModel, x, y, z, heading, (success) =>
+            {
+                if (success)
+                {
+                    Reply(src, $"Persistent ped '{pedModel}' spawned successfully.");
+                    
+                    // Broadcast to all clients to spawn the new ped
+                    TriggerClientEvent("PedManager:Client:SpawnSinglePersistentPed", pedModel, x, y, z, heading);
+                }
+                else
+                {
+                    Reply(src, $"Failed to spawn persistent ped '{pedModel}'.");
+                }
+            });
         }
 
         private void Reply(int src, string message)

@@ -17,6 +17,8 @@ namespace PedManager.Client
 
 
 			_eventHandler["PedManager:Client:LoadPersistentPeds"] += new Action<List<dynamic>>(SpawnPersistentPeds);
+			_eventHandler["PedManager:Client:RequestPersistentPedSpawn"] += new Action<string>(OnRequestPersistentPedSpawn);
+			_eventHandler["PedManager:Client:SpawnSinglePersistentPed"] += new Action<string, float, float, float, float>(SpawnSinglePersistentPed);
 		}
 
 		private async void SpawnPersistentPeds(List<dynamic> peds)
@@ -35,6 +37,47 @@ namespace PedManager.Client
 				FreezeEntityPosition(ped, true);
 				SetEntityInvincible(ped, true);
 			}
+		}
+
+		private void OnRequestPersistentPedSpawn(string pedModel)
+		{
+			int playerPed = PlayerPedId();
+
+			Vector3 playerPos = GetEntityCoords(playerPed, true);
+			float playerHeading = GetEntityHeading(playerPed);
+
+			// Calculate spawn position 2 units in front of player
+			float forwardX = playerPos.X + (2.0f * (float)Math.Sin(-playerHeading * (Math.PI / 180.0)));
+			float forwardY = playerPos.Y + (2.0f * (float)Math.Cos(-playerHeading * (Math.PI / 180.0)));
+			float forwardZ = playerPos.Z;
+
+			// Calculate heading to face player
+			float pedHeading = (playerHeading + 180.0f) % 360;
+
+			Debug.WriteLine($"[PedManager] Requesting spawn of persistent ped '{pedModel}' at ({forwardX}, {forwardY}, {forwardZ}) facing heading {pedHeading}");
+
+			// Send back to server with calculated position
+			BaseScript.TriggerServerEvent("PedManager:Server:SpawnPersistentPed", pedModel, forwardX, forwardY, forwardZ, pedHeading);
+
+		}
+
+		private async void SpawnSinglePersistentPed(string model, float x, float y, float z, float heading)
+		{
+			int hash = (int)GetHashKey(model);
+			RequestModel((uint)hash);
+
+			while (!HasModelLoaded((uint)hash))
+			{
+				await BaseScript.Delay(1);
+			}
+
+			int ped = CreatePed(4, (uint)hash, x, y, z, heading, true, true);
+			SetEntityAsMissionEntity(ped, true, true);
+			FreezeEntityPosition(ped, true);
+			SetEntityInvincible(ped, true);
+			SetBlockingOfNonTemporaryEvents(ped, true);
+
+			Debug.WriteLine($"[PedManager] Spawned persistent ped '{model}' at ({x}, {y}, {z}) with heading {heading}");
 		}
 
 	}
