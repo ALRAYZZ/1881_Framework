@@ -14,11 +14,14 @@ namespace AdminManager.Server
         {
             _teleportService = new TeleportServerService();
 
-            // Teleport an entity by its entity ID
-            EventHandlers["AdminManager:Teleport:EntityID"] += new Action<Player, int, float, float, float>(_teleportService.OnTeleportByEntityId);
-
 			// Teleport an entity by its network ID
             EventHandlers["AdminManager:Teleport:NetID"] += new Action<Player, int, float, float, float>(_teleportService.OnTeleportByNetId);
+
+            // Go to an entity by its network ID
+            EventHandlers["AdminManager:Teleport:GoToEntity"] += new Action<Player, int>(_teleportService.OnGoToEntity);
+
+			// Bring an entity by its network ID
+            EventHandlers["AdminManager:Teleport:BringEntity"] += new Action<Player, int>(_teleportService.OnBringEntity);
 
 		}
 	}

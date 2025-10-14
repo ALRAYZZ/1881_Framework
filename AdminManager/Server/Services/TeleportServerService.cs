@@ -13,22 +13,51 @@ namespace AdminManager.Server.Services
 		{
 		}
 
-
-		public void OnTeleportByEntityId(Player player, int entityId, float x, float y, float z)
+		public void OnGoToEntity([FromSource]Player player, int netId)
 		{
-			try
+			int entity = NetworkGetEntityFromNetworkId(netId);
+			if (entity == 0 || !DoesEntityExist(entity))
 			{
-				bool success = TeleportEntity(entityId, x, y, z);
-				AdminResultSender.SendResult(player, success, success ? $"Entity with Entity ID: {entityId}, teleported successfully." : "Failed to teleport entity.");
+				AdminResultSender.SendResult(player, false, $"No entity found with Net ID: {netId}");
+				return;
 			}
-			catch (Exception ex)
+
+			Vector3 targetPos = GetEntityCoords(entity);
+			int ped = GetPlayerPed(player.Handle);
+
+			if (ped == 0)
 			{
-				Debug.WriteLine($"[AdminManager] Error in OnTeleportByEntityId: {ex.Message}");
-				AdminResultSender.SendResult(player, false, "Server error while teleporting by entityID");
+				AdminResultSender.SendResult(player, false, "Player ped not found.");
+				return;
 			}
+
+			SetEntityCoords(ped, targetPos.X, targetPos.Y, targetPos.Z, false, false, false, true);
+			AdminResultSender.SendResult(player, true, $"Teleported to entity with Net ID: {netId} at position: {targetPos.X}, {targetPos.Y}, {targetPos.Z}");
 		}
 
-		public void OnTeleportByNetId(Player player, int netId, float x, float y, float z)
+		public void OnBringEntity([FromSource]Player player, int netId)
+		{
+			int entity = NetworkGetEntityFromNetworkId(netId);
+			if (entity == 0 || !DoesEntityExist(entity))
+			{
+				AdminResultSender.SendResult(player, false, $"No entity found with Net ID: {netId}");
+				return;
+			}
+
+			int ped = GetPlayerPed(player.Handle);
+			if (ped == 0)
+			{
+				AdminResultSender.SendResult(player, false, "Player ped not found.");
+				return;
+			}
+
+			Vector3 pos = GetEntityCoords(ped);
+
+			SetEntityCoords(entity, pos.X, pos.Y, pos.Z, false, false, false, true);
+			AdminResultSender.SendResult(player, true, $"Brought entity with Net ID: {netId} to your position: {pos.X}, {pos.Y}, {pos.Z}");
+		}
+
+		public void OnTeleportByNetId([FromSource]Player player, int netId, float x, float y, float z)
 		{
 			try
 			{
