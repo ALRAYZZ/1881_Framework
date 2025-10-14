@@ -16,9 +16,19 @@ namespace AdminManager.Client.Services
 		public VehicleLocator(EventHandlerDictionary events)
 		{
 			_events = events;
+
+			// Existing nearest vehicle response handler
 			_events["AdminManager:VehicleLocator:NearestVehicleResponse"] += new Action<int, float>(OnNearestVehicleResponse);
+
+			// Listen for server response
+			_events["AdminManager:Vehicle:InfoResponse"] += new Action<string>(OnVehicleInfoResponse);
+
 		}
 
+		private void OnVehicleInfoResponse(string info)
+		{
+			ChatHelper.PrintInfo(info);
+		}
 		public void RequestNearestVehicle()
 		{
 			// Trigger CLIENT event to ask VehicleManager to find nearest vehicle
@@ -33,27 +43,16 @@ namespace AdminManager.Client.Services
 				return;
 			}
 
-			// Get additional vehicle information
-			if (DoesEntityExist(vehicleId))
+			int netId = NetworkGetNetworkIdFromEntity(vehicleId);
+			if (netId == 0)
 			{
-				uint modelHash = (uint)GetEntityModel(vehicleId);
-				string modelName = GetDisplayNameFromVehicleModel(modelHash);
-				string plate = GetVehicleNumberPlateText(vehicleId);
-				var coords = GetEntityCoords(vehicleId, true);
-				int netId = NetworkGetNetworkIdFromEntity(vehicleId);
+				ChatHelper.PrintError("Failed to get network ID for the nearest vehicle.");
+				return;
+			}
 
-				ChatHelper.PrintInfo($"=== Nearest Vehicle Info ===");
-				ChatHelper.PrintInfo($"Entity ID: {vehicleId}");
-				ChatHelper.PrintInfo($"Network ID: {netId}");
-				ChatHelper.PrintInfo($"Model: {modelName} ({modelHash})");
-				ChatHelper.PrintInfo($"Plate: {plate}");
-				ChatHelper.PrintInfo($"Distance: {distance:F2}m");
-				ChatHelper.PrintInfo($"Position: X={coords.X:F2}, Y={coords.Y:F2}, Z={coords.Z:F2}");
-			}
-			else
-			{
-				ChatHelper.PrintInfo($"Nearest vehicle ID: {vehicleId}, Distance: {distance:F2}m (entity no longer exists)");
-			}
+			// Send the Net ID to the server for full info
+			BaseScript.TriggerServerEvent("AdminManager:Vehicle:GetInfo", netId, distance);
+			Debug.WriteLine($"[AdminManager] Requested info for vehicle Net ID: {netId}, distance: {distance:F2}m" );
 		}
 	}
 }

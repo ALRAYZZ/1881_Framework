@@ -9,10 +9,12 @@ namespace AdminManager.Server
     public class ServerMain : BaseScript
     {
         private readonly TeleportServerService _teleportService;
+        private readonly VehicleServerService _vehicleService;
 
         public ServerMain()
         {
             _teleportService = new TeleportServerService();
+            _vehicleService = new VehicleServerService();
 
 			// Teleport an entity by its network ID
             EventHandlers["AdminManager:Teleport:NetID"] += new Action<Player, int, float, float, float>(_teleportService.OnTeleportByNetId);
@@ -22,6 +24,11 @@ namespace AdminManager.Server
 
 			// Bring an entity by its network ID
             EventHandlers["AdminManager:Teleport:BringEntity"] += new Action<Player, int>(_teleportService.OnBringEntity);
+
+			// Get vehicle info by its network ID
+            EventHandlers["AdminManager:Vehicle:GetInfo"] += new Action<Player, int, float>(_vehicleService.OnGetVehicleInfo);
+
+            Debug.WriteLine("[AdminManager] ServerMain initialized.");
 
 		}
 	}
