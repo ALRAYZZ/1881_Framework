@@ -49,15 +49,22 @@ namespace PedManager.Client
 			// Calculate spawn position 2 units in front of player
 			float forwardX = playerPos.X + (2.0f * (float)Math.Sin(-playerHeading * (Math.PI / 180.0)));
 			float forwardY = playerPos.Y + (2.0f * (float)Math.Cos(-playerHeading * (Math.PI / 180.0)));
-			float forwardZ = playerPos.Z;
+			float forwardZ = playerPos.Z + 2.0f;
+
+			// Get ground Z at that position
+			float groundZ = forwardZ;
+			if (!GetGroundZFor_3dCoord(forwardX, forwardY, forwardZ, ref groundZ, false))
+			{
+				groundZ = playerPos.Z; // Fallback if ground Z not found
+			}
 
 			// Calculate heading to face player
 			float pedHeading = (playerHeading + 180.0f) % 360;
 
-			Debug.WriteLine($"[PedManager] Requesting spawn of persistent ped '{pedModel}' at ({forwardX}, {forwardY}, {forwardZ}) facing heading {pedHeading}");
+			Debug.WriteLine($"[PedManager] Requesting spawn of persistent ped '{pedModel}' at ({forwardX}, {forwardY}, {groundZ}) facing heading {pedHeading}");
 
 			// Send back to server with calculated position
-			BaseScript.TriggerServerEvent("PedManager:Server:SpawnPersistentPed", pedModel, forwardX, forwardY, forwardZ, pedHeading);
+			BaseScript.TriggerServerEvent("PedManager:Server:SpawnPersistentPed", pedModel, forwardX, forwardY, groundZ, pedHeading);
 
 		}
 
@@ -73,9 +80,13 @@ namespace PedManager.Client
 
 			int ped = CreatePed(4, (uint)hash, x, y, z, heading, true, true);
 			SetEntityAsMissionEntity(ped, true, true);
-			FreezeEntityPosition(ped, true);
 			SetEntityInvincible(ped, true);
 			SetBlockingOfNonTemporaryEvents(ped, true);
+
+			await BaseScript.Delay(100); // slight delay to ensure ped is created before placing on ground
+
+			PlaceObjectOnGroundOrObjectProperly(ped);
+			FreezeEntityPosition(ped, true);
 
 			Debug.WriteLine($"[PedManager] Spawned persistent ped '{model}' at ({x}, {y}, {z}) with heading {heading}");
 		}
