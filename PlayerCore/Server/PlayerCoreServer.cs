@@ -56,7 +56,7 @@ namespace PlayerCore.Server
 			Debug.WriteLine($"[PlayerCore] Player {player.Name} has spawned in the world.");
 
 			// Notify VehicleManager to sync world vehicles for this player
-			TriggerEvent("VehicleManager:Server:SyncWorldVehiclesForPlayer", player);
+			TriggerEvent("VehicleManager:Server:SyncWorldVehiclesForPlayer", player.Handle);
 
 			// Others MODULES CAN LISTEN TO THIS EVENT
 		}

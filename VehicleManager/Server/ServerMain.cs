@@ -70,7 +70,7 @@ namespace VehicleManager.Server
 				new Action<Player, int, bool>(OnUpdateWorldVehicleEngineState);
 
 			EventHandlers["VehicleManager:Server:SyncWorldVehiclesForPlayer"] +=
-				new Action<Player>(OnSyncWorldVehiclesForPlayer);
+				new Action<string>(OnSyncWorldVehiclesForPlayer);
 
 			EventHandlers["entityRemoved"] +=
 				new Action<int>(OnEntityRemoved);
@@ -207,8 +207,10 @@ namespace VehicleManager.Server
 			}
 		}
 
-		private void OnSyncWorldVehiclesForPlayer([FromSource] Player player)
+		private void OnSyncWorldVehiclesForPlayer(string playerHandle)
 		{
+			var player = Players[playerHandle];
+			if (player == null) return;
 			_stateManager.SyncWorldVehiclesToPlayer(player);
 		}
 
