@@ -12,21 +12,25 @@ namespace PedManager.Server.Services
 	{
 		private readonly EventHandlerDictionary _eventHandler;
 		private readonly dynamic _db;
+		private readonly BaseScript _baseScript;
 		private List<PersistentPed> persistentPeds = new List<PersistentPed>();
 
 		public PersistentPedService(dynamic db, EventHandlerDictionary eventHandler)
 		{
 			_eventHandler = eventHandler;
 			_db = db;
-			_eventHandler["OnResourceStart"] += new Action<string>(OnResourceStart);
-			_eventHandler["playerConnecting"] += new Action<Player, string, dynamic, dynamic>(OnPlayerConnecting);
+			_eventHandler["onResourceStart"] += new Action<string>(OnResourceStart);
+			_eventHandler["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerPostSpawned);
 		}
 
 		private void OnResourceStart(string resourceName)
 		{
+			Debug.WriteLine($"[PedManager] Resource started: {resourceName} triggered OnResourceStart");
 			if (GetCurrentResourceName() != resourceName) return;
 			// Load persistent peds from database
 			LoadPersistentPeds();
+
+			Debug.WriteLine($"[PedManager] Sent {persistentPeds.Count} persistent peds to all connected players.");
 		}
 
 		public void AddPersistentPed(string model, float x, float y, float z, float heading, Action<bool> callback)
@@ -115,9 +119,16 @@ namespace PedManager.Server.Services
 			}));
 		}
 
-		private void OnPlayerConnecting([FromSource] Player player, string playerName, dynamic setKickReason, dynamic deferrals)
+		private void OnPlayerPostSpawned([FromSource] Player player)
 		{
-			player.TriggerEvent("PedManager:Client:LoadPersistentPeds", persistentPeds);
+			if (player == null) return;
+
+			Debug.WriteLine($"[PedManager] Server: Post-spawn for player {player.Name}");
+
+			BaseScript.Delay(500);
+
+			BaseScript.TriggerClientEvent("PedManager:Client:LoadPersistentPeds", persistentPeds);
+			Debug.WriteLine($"[PedManager] Server: Sent {persistentPeds.Count} persistent peds to player {player.Name}");
 		}
 	}
 }

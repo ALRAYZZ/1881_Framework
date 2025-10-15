@@ -16,27 +16,36 @@ namespace PedManager.Client
 			_eventHandler = eventHandler;
 
 
-			_eventHandler["PedManager:Client:LoadPersistentPeds"] += new Action<List<dynamic>>(SpawnPersistentPeds);
+			_eventHandler["PedManager:Client:LoadPersistentPeds"] += new Action<dynamic>(SpawnPersistentPeds);
 			_eventHandler["PedManager:Client:RequestPersistentPedSpawn"] += new Action<string>(OnRequestPersistentPedSpawn);
 			_eventHandler["PedManager:Client:SpawnSinglePersistentPed"] += new Action<string, float, float, float, float>(SpawnSinglePersistentPed);
 		}
 
-		private async void SpawnPersistentPeds(List<dynamic> peds)
+		private async void SpawnPersistentPeds(dynamic peds)
 		{
+			Debug.WriteLine($"[PedManager] Spawning persistent peds from database...");
+
 			foreach (var pedData in peds)
 			{
-				int hash = (int)GetHashKey(pedData.Model.ToString());
-				RequestModel((uint)hash);
-				while (!HasModelLoaded((uint)hash))
+				string model = pedData.Model ?? pedData.Model;
+				float x = (float)pedData.X;
+				float y = (float)pedData.Y;
+				float z = (float)pedData.Z;
+				float heading = (float)pedData.Heading;
+
+				uint hash = (uint)GetHashKey(model);
+				RequestModel(hash);
+				while (!HasModelLoaded(hash))
 				{
 					await BaseScript.Delay(1);
 				}
 
-				int ped = CreatePed(4, (uint)hash, (float)pedData.X, (float)pedData.Y, (float)pedData.Z, (float)pedData.Heading, true, true);
+				int ped = CreatePed(4, hash, x, y, z, heading, true, true);
 				SetEntityAsMissionEntity(ped, true, true);
 				FreezeEntityPosition(ped, true);
 				SetEntityInvincible(ped, true);
 			}
+			Debug.WriteLine($"[PedManager] Spawned {peds.Count} persistent peds from database.");
 		}
 
 		private void OnRequestPersistentPedSpawn(string pedModel)
@@ -65,7 +74,6 @@ namespace PedManager.Client
 
 			// Send back to server with calculated position
 			BaseScript.TriggerServerEvent("PedManager:Server:SpawnPersistentPed", pedModel, forwardX, forwardY, groundZ, pedHeading);
-
 		}
 
 		private async void SpawnSinglePersistentPed(string model, float x, float y, float z, float heading)

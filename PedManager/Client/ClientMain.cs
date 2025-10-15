@@ -12,8 +12,12 @@ namespace PedManager.Client
 
         public ClientMain()
         {
+            Debug.WriteLine("[PedManager] ClientMain initialized.");
+
             _persistentPedClient = new PersistentPedClient(EventHandlers);
             _pedModelApplier = new PedModelApplier();
+
+            Debug.WriteLine("[PedManager] Event handlers being registered.");
 
             bool spawned = false;
             EventHandlers["playerSpawned"] +=  new Action<dynamic>((_) => spawned = true);
