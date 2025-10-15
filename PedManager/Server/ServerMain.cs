@@ -236,14 +236,14 @@ namespace PedManager.Server
             int src = int.Parse(player.Handle);
             Debug.WriteLine($"[PedManager] Spawning persistent ped '{pedModel}' at ({x}, {y}, {z}, {heading}) by player {src}");
 
-            _persistentPedService.AddPersistentPed(pedModel, x, y, z, heading, (success) =>
+            _persistentPedService.AddPersistentPed(pedModel, x, y, z, heading, (success, insertedId) =>
             {
                 if (success)
                 {
                     Reply(src, $"Persistent ped '{pedModel}' spawned successfully.");
                     
                     // Broadcast to all clients to spawn the new ped
-                    TriggerClientEvent("PedManager:Client:SpawnSinglePersistentPed", pedModel, x, y, z, heading);
+                    TriggerClientEvent("PedManager:Client:SpawnSinglePersistentPed", pedModel, x, y, z, heading, insertedId);
                 }
                 else
                 {

@@ -26,7 +26,7 @@ namespace AdminManager.Server.Services
 			Vector3 pos = GetEntityCoords(entity);
 
 			string info = $"=== Ped Info ===\n" +
-						  $"Model: {modelName}" +
+						  $"Model: {modelName}\n" +
 						  $"Net ID: {netId}\n" +
 						  $"Distance (approx): {distance:F2}m\n" +
 						  $"Position: X={pos.X:F2}, Y={pos.Y:F2}, Z={pos.Z:F2}";

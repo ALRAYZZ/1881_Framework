@@ -34,7 +34,7 @@ namespace PedManager.Server.Services
 			Debug.WriteLine($"[PedManager] Sent {persistentPeds.Count} persistent peds to all connected players.");
 		}
 
-		public void AddPersistentPed(string model, float x, float y, float z, float heading, Action<bool> callback)
+		public void AddPersistentPed(string model, float x, float y, float z, float heading, Action<bool, int> callback)
 		{
 			var query = "INSERT INTO persistent_peds (model, x, y, z, heading) VALUES (@model, @x, @y, @z, @heading)";
 			var parameters = new Dictionary<string, object>
@@ -66,18 +66,18 @@ namespace PedManager.Server.Services
 						});
 
 						Debug.WriteLine($"[PedManager] Added persistent ped ID {insertedId} at ({x}, {y}, {z})");
-						callback?.Invoke(true);
+						callback?.Invoke(true, insertedId);
 					}
 					else
 					{
 						Debug.WriteLine("[PedManager] Failed to add persistent ped to database.");
-						callback?.Invoke(false);
+						callback?.Invoke(false, 0);
 					}
 				}
 				catch (Exception ex)
 				{
 					Debug.WriteLine($"[PedManager] Error adding persistent ped: {ex.Message}");
-					callback?.Invoke(false);
+					callback?.Invoke(false, 0);
 				}
 			}));
 		}
