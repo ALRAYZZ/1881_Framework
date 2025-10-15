@@ -12,11 +12,13 @@ namespace AdminManager.Client.Commands
     {
         private readonly EventHandlerDictionary _eventHandlers;
         private readonly VehicleLocator _vehicleLocator;
+        private readonly PedLocator _pedLocator;
 
         public TeleportClientCommands(EventHandlerDictionary eventHandlers)
         {
             _eventHandlers = eventHandlers;
             _vehicleLocator = new VehicleLocator(_eventHandlers);
+            _pedLocator = new PedLocator(_eventHandlers);
 
 			// Register commands
 
@@ -29,12 +31,18 @@ namespace AdminManager.Client.Commands
 
 
 
-            RegisterCommand("getinfo", new Action<int, List<object>, string>(GetInfo), false);
+            RegisterCommand("vehinfo", new Action<int, List<object>, string>(GetVehInfo), false);
+            RegisterCommand("pedinfo", new Action<int, List<object>, string>(GetPedInfo), false);
 
             _eventHandlers["AdminManager:Teleport:Result"] += new Action<bool, string>(OnTeleportResult);
         }
 
-        private void GetInfo(int src, List<object> args, string raw)
+        private void GetPedInfo(int src, List<object> args, string raw)
+        {
+            _pedLocator.RequestNearestPed();
+        }
+
+        private void GetVehInfo(int src, List<object> args, string raw)
         {
             _vehicleLocator.RequestNearestVehicle();
 		}

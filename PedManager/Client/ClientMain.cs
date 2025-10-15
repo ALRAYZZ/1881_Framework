@@ -9,6 +9,7 @@ namespace PedManager.Client
     {
         private readonly IPedModelApplier _pedModelApplier;
         private readonly PersistentPedClient _persistentPedClient;
+        private readonly PedEvents _pedEvents;
 
         public ClientMain()
         {
@@ -16,6 +17,7 @@ namespace PedManager.Client
 
             _persistentPedClient = new PersistentPedClient(EventHandlers);
             _pedModelApplier = new PedModelApplier();
+            _pedEvents = new PedEvents(EventHandlers);
 
             Debug.WriteLine("[PedManager] Event handlers being registered.");
 

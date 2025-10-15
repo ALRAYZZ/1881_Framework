@@ -10,11 +10,13 @@ namespace AdminManager.Server
     {
         private readonly TeleportServerService _teleportService;
         private readonly VehicleServerService _vehicleService;
+        private readonly PedServerService _pedService;
 
         public ServerMain()
         {
             _teleportService = new TeleportServerService();
             _vehicleService = new VehicleServerService();
+            _pedService = new PedServerService();
 
 			// Teleport an entity by its network ID
             EventHandlers["AdminManager:Teleport:NetID"] += new Action<Player, int, float, float, float>(_teleportService.OnTeleportByNetId);
@@ -28,7 +30,10 @@ namespace AdminManager.Server
 			// Get vehicle info by its network ID
             EventHandlers["AdminManager:Vehicle:GetInfo"] += new Action<Player, int, float>(_vehicleService.OnGetVehicleInfo);
 
-            Debug.WriteLine("[AdminManager] ServerMain initialized.");
+			// Get ped info by its network ID
+			EventHandlers["AdminManager:Ped:GetInfo"] += new Action<Player, int, float>(_pedService.OnGetPedInfo);
+
+			Debug.WriteLine("[AdminManager] ServerMain initialized.");
 
 		}
 	}
