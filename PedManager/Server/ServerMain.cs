@@ -87,6 +87,8 @@ namespace PedManager.Server
             // Handle client callback with spawn position
             EventHandlers["PedManager:Server:SpawnPersistentPed"] += new Action<Player, string, float, float, float, float>(OnSpawnPersistentPedCallback);
 
+            EventHandlers["PedManager:Server:UnpersistPedById"] += new Action<Player, int>(OnUnpersistPedRequest);
+
             // If PlayerCore already spawned with the correct model (from state), skip re-applying to avoid double swap
             EventHandlers["PlayerCore:Server:OnSpawned"] += new Action<Player>(OnPlayerCoreSpawned);
         }
@@ -205,6 +207,21 @@ namespace PedManager.Server
 
             // Request spawn position from client (player's position + forward offset)
             player.TriggerEvent("PedManager:Client:RequestPersistentPedSpawn", pedModel);
+        }
+
+        private void OnUnpersistPedRequest([FromSource] Player player, int dbId)
+        {
+            _persistentPedService.RemovePersistentPedByNetId(dbId, (success) =>
+            {
+                if (success)
+                {
+                    Reply(int.Parse(player.Handle), "Persistent ped deleted successfully.");
+                }
+                else
+                {
+                    Reply(int.Parse(player.Handle), "Failed to delete persistent ped. Make sure you are close enough.");
+                }
+            });
         }
 
         private void OnSpawnPersistentPedCallback([FromSource] Player player, string pedModel, float x, float y, float z, float heading)

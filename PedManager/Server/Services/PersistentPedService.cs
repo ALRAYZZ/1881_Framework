@@ -3,6 +3,7 @@ using PedManager.Server.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Text;
 using static CitizenFX.Core.Native.API;
 
@@ -116,6 +117,30 @@ namespace PedManager.Server.Services
 				{
 					Debug.WriteLine($"[PedManager] Error loading persistent peds: {ex.Message}");
 				}
+			}));
+		}
+
+		public void RemovePersistentPedByNetId(int dbId, Action<bool> callback)
+		{
+			var ped = persistentPeds.FirstOrDefault(p => p.Id == dbId);
+			if (ped == null)
+			{
+				Debug.WriteLine($"[PedManager] No persistent ped found near DB ID {dbId} to remove.");
+				callback?.Invoke(false);
+				return;
+			}
+
+			// Remove from DB
+			var query = "DELETE FROM persistent_peds WHERE id = @id";
+			var parameters = new Dictionary<string, object>
+			{
+				{ "@id", ped.Id }
+			};
+			_db.Query(query, parameters, new Action<dynamic>((result) =>
+			{
+				persistentPeds.Remove(ped);
+				Debug.WriteLine($"[PedManager] Removed persistent ped ID {ped.Id} from database and memory.");
+				callback?.Invoke(true);
 			}));
 		}
 

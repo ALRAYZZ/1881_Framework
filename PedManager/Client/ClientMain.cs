@@ -19,7 +19,10 @@ namespace PedManager.Client
             _pedModelApplier = new PedModelApplier();
             _pedEvents = new PedEvents(EventHandlers);
 
-            Debug.WriteLine("[PedManager] Event handlers being registered.");
+            DecorRegister("PersistentPedId", 3); // 3 = integer type
+
+			Debug.WriteLine("[PedManager] Event handlers being registered.");
+
 
             bool spawned = false;
             EventHandlers["playerSpawned"] +=  new Action<dynamic>((_) => spawned = true);

@@ -25,7 +25,7 @@ namespace AdminManager.Client.Services
 
 		public void RequestNearestPed()
 		{
-			// Trigger CLIENT event to ask VehicleManager to find nearest vehicle
+			// Trigger CLIENT event to ask PedManager to find nearest ped
 			BaseScript.TriggerEvent("PedManager:Client:GetNearestPed", "AdminManager:PedLocator:NearestPedResponse");
 		}
 

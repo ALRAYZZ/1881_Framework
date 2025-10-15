@@ -15,10 +15,75 @@ namespace PedManager.Client
 		{
 			_eventHandler = eventHandler;
 
+			RegisterCommand("unpersistped", new Action<int, List<object>, string>(OnUnpersistPedCommand), false);
 
 			_eventHandler["PedManager:Client:LoadPersistentPeds"] += new Action<dynamic>(SpawnPersistentPeds);
 			_eventHandler["PedManager:Client:RequestPersistentPedSpawn"] += new Action<string>(OnRequestPersistentPedSpawn);
-			_eventHandler["PedManager:Client:SpawnSinglePersistentPed"] += new Action<string, float, float, float, float>(SpawnSinglePersistentPed);
+			_eventHandler["PedManager:Client:SpawnSinglePersistentPed"] += new Action<string, float, float, float, float, int>(SpawnSinglePersistentPed);
+			_eventHandler["PedManager:Client:UnpersistPedNearestResponse"] += new Action<int, float>(OnUnpersistPedNearestResponse);
+			_eventHandler["PedManager:Client:DeletePersistentPed"] += new Action<int>(OnDeletePersistentPed);
+		}
+
+		private void OnUnpersistPedCommand(int source, List<object> args, string raw)
+		{
+			if (args == null || args.Count < 1)
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "[PedManager] Usage: /unpersistped <Net ID>" } });
+				return;
+			}
+			if (!int.TryParse(args[0].ToString(), out int netId))
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "[PedManager] Invalid Net ID." } });
+				return;
+			}
+
+			int entity = NetworkGetEntityFromNetworkId(netId);
+			if (entity != 0 && DoesEntityExist(entity))
+			{
+				int dbId = DecorGetInt(entity, "PersistentPedId");
+				if (dbId > 0)
+				{
+					BaseScript.TriggerServerEvent("PedManager:Server:UnpersistPedById", dbId);
+				}
+				else
+				{
+					BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "[PedManager] This ped is not marked as persistent." } });
+				}
+
+			}
+			else
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "[PedManager] No ped found with that Net ID." } });
+			}
+		}
+
+		private void OnDeletePersistentPed(int netId)
+		{
+			int entity = NetworkGetEntityFromNetworkId(netId);
+			if (entity != 0 && DoesEntityExist(entity))
+			{
+				SetEntityAsMissionEntity(entity, true, true);
+				DeleteEntity(ref entity);
+				Debug.WriteLine($"[PedManager] Deleted persistent ped with Net ID: {netId}");
+			}
+		}
+
+		private void OnUnpersistPedNearestResponse(int pedId, float distance)
+		{
+			if (pedId == 0)
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "[PedManager] No peds found nearby to unpersist." } });
+				return;
+			}
+			int netId = NetworkGetNetworkIdFromEntity(pedId);
+			if (netId == 0)
+			{
+				BaseScript.TriggerEvent("chat:addMessage", new { args = new[] { "[PedManager] Failed to get network ID for the nearest ped." } });
+				return;
+			}
+			// Send the Net ID to the server to unpersist
+			BaseScript.TriggerServerEvent("PedManager:Server:UnpersistPed", netId, distance);
+			Debug.WriteLine($"[PedManager] Requested unpersist for ped Net ID: {netId}, distance: {distance:F2}m");
 		}
 
 		private async void SpawnPersistentPeds(dynamic peds)
@@ -44,6 +109,9 @@ namespace PedManager.Client
 				SetEntityAsMissionEntity(ped, true, true);
 				FreezeEntityPosition(ped, true);
 				SetEntityInvincible(ped, true);
+
+				// Set decorator
+				DecorSetInt(ped, "PersistentPedId", (int)pedData.Id);
 			}
 			Debug.WriteLine($"[PedManager] Spawned {peds.Count} persistent peds from database.");
 		}
@@ -76,7 +144,7 @@ namespace PedManager.Client
 			BaseScript.TriggerServerEvent("PedManager:Server:SpawnPersistentPed", pedModel, forwardX, forwardY, groundZ, pedHeading);
 		}
 
-		private async void SpawnSinglePersistentPed(string model, float x, float y, float z, float heading)
+		private async void SpawnSinglePersistentPed(string model, float x, float y, float z, float heading, int id)
 		{
 			int hash = (int)GetHashKey(model);
 			RequestModel((uint)hash);
@@ -90,6 +158,8 @@ namespace PedManager.Client
 			SetEntityAsMissionEntity(ped, true, true);
 			SetEntityInvincible(ped, true);
 			SetBlockingOfNonTemporaryEvents(ped, true);
+
+			DecorSetInt(ped, "PersistentPedId", id);
 
 			await BaseScript.Delay(100); // slight delay to ensure ped is created before placing on ground
 
