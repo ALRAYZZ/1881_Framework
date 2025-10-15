@@ -216,6 +216,7 @@ namespace PedManager.Server
                 if (success)
                 {
                     Reply(int.Parse(player.Handle), "Persistent ped deleted successfully.");
+                    TriggerClientEvent("PedManager:Client:DeletePersistentPedById", dbId);
                 }
                 else
                 {

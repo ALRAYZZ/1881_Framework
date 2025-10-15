@@ -21,7 +21,7 @@ namespace PedManager.Client
 			_eventHandler["PedManager:Client:RequestPersistentPedSpawn"] += new Action<string>(OnRequestPersistentPedSpawn);
 			_eventHandler["PedManager:Client:SpawnSinglePersistentPed"] += new Action<string, float, float, float, float, int>(SpawnSinglePersistentPed);
 			_eventHandler["PedManager:Client:UnpersistPedNearestResponse"] += new Action<int, float>(OnUnpersistPedNearestResponse);
-			_eventHandler["PedManager:Client:DeletePersistentPed"] += new Action<int>(OnDeletePersistentPed);
+			_eventHandler["PedManager:Client:DeletePersistentPedById"] += new Action<int>(OnDeletePersistentPedById);
 		}
 
 		private void OnUnpersistPedCommand(int source, List<object> args, string raw)
@@ -57,14 +57,40 @@ namespace PedManager.Client
 			}
 		}
 
-		private void OnDeletePersistentPed(int netId)
+		private void OnDeletePersistentPedById(int dbId)
 		{
-			int entity = NetworkGetEntityFromNetworkId(netId);
-			if (entity != 0 && DoesEntityExist(entity))
+			// Loop through all peds
+			int handle = 0;
+			int iter = FindFirstPed(ref handle);
+			bool found = false;
+
+			if (iter != 0)
 			{
-				SetEntityAsMissionEntity(entity, true, true);
-				DeleteEntity(ref entity);
-				Debug.WriteLine($"[PedManager] Deleted persistent ped with Net ID: {netId}");
+				do
+				{
+					if (DoesEntityExist(handle) && DecorExistOn(handle, "PersistentPedId"))
+					{
+						int pedDbId = DecorGetInt(handle, "PersistentPedId");
+						if (pedDbId == dbId)
+						{
+							// Found the ped to delete
+							SetEntityAsMissionEntity(handle, true, true);
+							DeleteEntity(ref handle);
+							found = true;
+							break;
+						}
+					}
+				} while (FindNextPed(iter, ref handle));
+				EndFindPed(iter);
+			}
+
+			if (found)
+			{
+				Debug.WriteLine($"[PedManager] Deleted persistent ped with DB ID {dbId} from world.");
+			}
+			else
+			{
+				Debug.WriteLine($"[PedManager] No persistent ped with DB ID {dbId} found in world to delete.");
 			}
 		}
 
