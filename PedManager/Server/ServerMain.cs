@@ -84,8 +84,9 @@ namespace PedManager.Server
                 }
             });
 
-            // Handle client callback with spawn position
-            EventHandlers["PedManager:Server:SpawnPersistentPed"] += new Action<Player, string, float, float, float, float>(OnSpawnPersistentPedCallback);
+            EventHandlers["PedManager:Server:RequestAddPersistentPed"] += new Action<string, float, float, float, float>(OnRequestAddPersistentPed);
+
+            EventHandlers["PedManager:Server:ConfirmAddPersistentPed"] += new Action<string, float, float, float, float, int>(OnConfirmAddPersistentPed);
 
             EventHandlers["PedManager:Server:UnpersistPedById"] += new Action<Player, int>(OnUnpersistPedRequest);
 
@@ -225,29 +226,24 @@ namespace PedManager.Server
             });
         }
 
-        private void OnSpawnPersistentPedCallback([FromSource] Player player, string pedModel, float x, float y, float z, float heading)
+        private void OnRequestAddPersistentPed(string model, float x, float y, float z, float heading)
         {
-            if (player == null)
-            {
-                Debug.WriteLine("[PedManager] OnSpawnPersistentPedCallback: player is null.");
-                return;
-            }
+            TriggerClientEvent("PedManager:Client:SpawnTempPersistentPed", model, x, y, z, heading);
+        }
 
-            int src = int.Parse(player.Handle);
-            Debug.WriteLine($"[PedManager] Spawning persistent ped '{pedModel}' at ({x}, {y}, {z}, {heading}) by player {src}");
-
-            _persistentPedService.AddPersistentPed(pedModel, x, y, z, heading, (success, insertedId) =>
+        private void OnConfirmAddPersistentPed(string mode, float x, float y, float z, float heading, int netId)
+        {
+            _persistentPedService.AddPersistentPed(mode, x, y, z, heading, (success, insertedId) =>
             {
                 if (success)
                 {
-                    Reply(src, $"Persistent ped '{pedModel}' spawned successfully.");
-                    
-                    // Broadcast to all clients to spawn the new ped
-                    TriggerClientEvent("PedManager:Client:SpawnSinglePersistentPed", pedModel, x, y, z, heading, insertedId);
+                    Debug.WriteLine($"[PedManager] Added persistent ped '{mode}' at ({x}, {y}, {z}, {heading}), assigned ID {insertedId}.");
+                    TriggerClientEvent("PedManager:Client:FinalizePersistentPed", netId, insertedId);
                 }
                 else
                 {
-                    Reply(src, $"Failed to spawn persistent ped '{pedModel}'.");
+                    Debug.WriteLine($"[PedManager] Failed to add persistent ped '{mode}'.");
+                    TriggerClientEvent("PedManager:Client:CleanupTempPersistentPed", netId);
                 }
             });
         }

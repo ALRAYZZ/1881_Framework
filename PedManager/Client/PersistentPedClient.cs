@@ -19,9 +19,11 @@ namespace PedManager.Client
 
 			_eventHandler["PedManager:Client:LoadPersistentPeds"] += new Action<dynamic>(SpawnPersistentPeds);
 			_eventHandler["PedManager:Client:RequestPersistentPedSpawn"] += new Action<string>(OnRequestPersistentPedSpawn);
-			_eventHandler["PedManager:Client:SpawnSinglePersistentPed"] += new Action<string, float, float, float, float, int>(SpawnSinglePersistentPed);
 			_eventHandler["PedManager:Client:UnpersistPedNearestResponse"] += new Action<int, float>(OnUnpersistPedNearestResponse);
 			_eventHandler["PedManager:Client:DeletePersistentPedById"] += new Action<int>(OnDeletePersistentPedById);
+			_eventHandler["PedManager:Client:SpawnTempPersistentPed"] += new Action<string, float, float, float, float>(OnSpawnTempPersistentPed);
+			_eventHandler["PedManager:Client:FinalizePersistentPed"] += new Action<int, int>(OnFinalizePersistentPed);
+			_eventHandler["PedManager:Client:CleanupTempPersistentPed"] += new Action<int>(OnCleanupTempPersistentPed);
 		}
 
 		private void OnUnpersistPedCommand(int source, List<object> args, string raw)
@@ -167,32 +169,67 @@ namespace PedManager.Client
 			Debug.WriteLine($"[PedManager] Requesting spawn of persistent ped '{pedModel}' at ({forwardX}, {forwardY}, {groundZ}) facing heading {pedHeading}");
 
 			// Send back to server with calculated position
-			BaseScript.TriggerServerEvent("PedManager:Server:SpawnPersistentPed", pedModel, forwardX, forwardY, groundZ, pedHeading);
+			BaseScript.TriggerServerEvent("PedManager:Server:RequestAddPersistentPed", pedModel, forwardX, forwardY, groundZ, pedHeading);
 		}
 
-		private async void SpawnSinglePersistentPed(string model, float x, float y, float z, float heading, int id)
+		private async void OnSpawnTempPersistentPed(string model, float x, float y, float z, float heading)
 		{
 			int hash = (int)GetHashKey(model);
 			RequestModel((uint)hash);
-
 			while (!HasModelLoaded((uint)hash))
 			{
 				await BaseScript.Delay(1);
 			}
 
 			int ped = CreatePed(4, (uint)hash, x, y, z, heading, true, true);
+			if (ped == 0)
+			{
+				Debug.WriteLine($"[PedManager] Failed to create temp persistent ped of model '{model}' at ({x}, {y}, {z})");
+				return;
+			}
+
 			SetEntityAsMissionEntity(ped, true, true);
 			SetEntityInvincible(ped, true);
 			SetBlockingOfNonTemporaryEvents(ped, true);
 
-			DecorSetInt(ped, "PersistentPedId", id);
+			// Set temp decor for identification NET ID
+			int netId = NetworkGetNetworkIdFromEntity(ped);
+			DecorSetInt(ped, "TempPersistentPed", netId);
 
-			await BaseScript.Delay(100); // slight delay to ensure ped is created before placing on ground
-
+			await BaseScript.Delay(100);
 			PlaceObjectOnGroundOrObjectProperly(ped);
 			FreezeEntityPosition(ped, true);
 
-			Debug.WriteLine($"[PedManager] Spawned persistent ped '{model}' at ({x}, {y}, {z}) with heading {heading}");
+			// Confirm success, trigger server insert
+			BaseScript.TriggerServerEvent("PedManager:Server:ConfirmAddPersistentPed", model, x, y, z, heading, netId);
+		}
+
+		private void OnFinalizePersistentPed(int netId, int dbId)
+		{
+			int ped = NetworkGetEntityFromNetworkId(netId);
+			if (ped != 0 && DoesEntityExist(ped) && DecorExistOn(ped, "TempPersistentPed"))
+			{
+				// Remove temp decor
+				DecorRemove(ped, "TempPersistentPed");
+				// Set persistent decor
+				DecorSetInt(ped, "PersistentPedId", dbId);
+				Debug.WriteLine($"[PedManager] Finalized persistent ped with DB ID {dbId} and Net ID {netId}");
+			}
+			else
+			{
+				Debug.WriteLine($"[PedManager] Failed to finalize persistent ped. No ped found with Net ID {netId} or missing TempPersistentPed decor.");
+			}
+		}
+
+		private void OnCleanupTempPersistentPed(int netId)
+		{
+			int ped = NetworkGetEntityFromNetworkId(netId);
+			if (ped != 0 && DoesEntityExist(ped) && DecorExistOn(ped, "TempPersistentPed"))
+			{
+				SetEntityAsMissionEntity(ped, true, true);
+				DeleteEntity(ref ped);
+				Debug.WriteLine($"[PedManager] Cleaned up temp persistent ped with Net ID {netId} due to DB insert failure.");
+			}
 		}
 
 	}
