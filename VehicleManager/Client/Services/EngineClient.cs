@@ -15,6 +15,9 @@ namespace VehicleManager.Client.Services
 		// Pending toggles awaiting IsWorldVehicle check
 		private readonly Dictionary<int, bool> _pendingPersistByNetId = new Dictionary<int, bool>();
 
+		// Track last car player was in to detect entering'
+		private int _lastVehicle = 0;
+
 		public EngineClient()
 		{
 			// Server side /engine command forwards to this client event
@@ -32,6 +35,9 @@ namespace VehicleManager.Client.Services
 
 			// Periodically enforce states to prevent auto start for parked vehicles
 			Tick += EnforceEngineStateTick;
+
+			// Detect when player enters a vehicle to apply stored engine state
+			Tick += OnVehicleEnterTick;
 		}
 
 		private void OnToggleEngine()
@@ -115,6 +121,36 @@ namespace VehicleManager.Client.Services
 				Debug.WriteLine($"[VehicleManager] Error in EnforceEngineStateTick: {ex}");
 			}
 			await Delay(500);
+		}
+
+		private async Task OnVehicleEnterTick()
+		{
+			try
+			{
+				int ped = PlayerPedId();
+				int veh = GetVehiclePedIsIn(ped, false);
+				if (veh != 0 && veh != _lastVehicle)
+				{
+					// Just entered a vehicle
+					_lastVehicle = veh;
+					int netId = NetworkGetNetworkIdFromEntity(veh);
+					if (netId != 0 && _engineStateByNetId.ContainsKey(netId))
+					{
+						// World Vehicle apply state immediately
+						bool desired = _engineStateByNetId[netId];
+						ApplyEngineStateToVehicle(netId, desired);
+					}
+				}
+				else if (veh == 0)
+				{
+					_lastVehicle = 0;
+				}
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine($"[VehicleManager] Error in OnVehicleEnterTick: {ex}");
+			}
+			await Delay(100);
 		}
 
 		private void ApplyEngineStateToVehicle(int netId, bool engineOn)
