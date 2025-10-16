@@ -15,17 +15,20 @@ namespace PedManager.Server
     {
         private readonly IPedService _pedService;
         private readonly PersistentPedService _persistentPedService;
+        private readonly PedAnimationServer _pedAnimationServer;
 
         public ServerMain()
         {
             var db = Exports["Database"];
             _persistentPedService = new PersistentPedService(db, EventHandlers);
             _pedService = new PedService(db);
+            _pedAnimationServer = new PedAnimationServer();
 
             Debug.WriteLine("[PedManager] Server initialized.");
 
             RegisterCommand("setped", new Action<int, List<object>, string>(OnSetPedCommand), true);
             RegisterCommand("persistped", new Action<int, List<object>, string>(OnPersistPedCommand), true);
+            RegisterCommand("giveanim", new Action<int, List<object>, string>(OnGiveAnimCommand), true);
 
             EventHandlers["PedManager:Server:ApplyPed"] += new Action<string, string>((serverId, model) =>
             {
@@ -210,7 +213,41 @@ namespace PedManager.Server
             player.TriggerEvent("PedManager:Client:RequestPersistentPedSpawn", pedModel);
         }
 
-        private void OnUnpersistPedRequest([FromSource] Player player, int dbId)
+        private void OnGiveAnimCommand(int src, List<object> args, string raw)
+        {
+            // Usage: /giveanim <netid> <anim_dict> <anim_name>
+            if (args == null || args.Count < 3)
+            {
+                Reply(src, "Usage: /giveanim <netid> <anim_dict> <anim_name>");
+                return;
+            }
+
+            if (!int.TryParse(args[0]?.ToString(), out int netId))
+            {
+                Reply(src, "Invalid netid.");
+                return;
+            }
+
+            string animDict = args[1]?.ToString();
+            string animName = args[2]?.ToString();
+            if (string.IsNullOrWhiteSpace(animDict) || string.IsNullOrWhiteSpace(animName))
+            {
+                Reply(src, "Invalid anim_dict or anim_name.");
+                return;
+            }
+
+            int animFlag = 1; // default
+            if (args.Count > 3 && !int.TryParse(args[3]?.ToString(), out animFlag))
+            {
+                Reply(src, "Invalid anim_flag, using default 1.");
+                animFlag = 1;
+            }
+
+
+			_pedAnimationServer.GiveAnimation(netId, animDict, animName, animFlag);
+		}
+
+		private void OnUnpersistPedRequest([FromSource] Player player, int dbId)
         {
             _persistentPedService.RemovePersistentPedByNetId(dbId, (success) =>
             {

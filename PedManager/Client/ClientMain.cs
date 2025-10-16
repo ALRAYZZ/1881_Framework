@@ -10,6 +10,7 @@ namespace PedManager.Client
         private readonly IPedModelApplier _pedModelApplier;
         private readonly PersistentPedClient _persistentPedClient;
         private readonly PedEvents _pedEvents;
+        private readonly PedAnimationClient _pedAnimationClient;
 
         public ClientMain()
         {
@@ -18,6 +19,7 @@ namespace PedManager.Client
             _persistentPedClient = new PersistentPedClient(EventHandlers);
             _pedModelApplier = new PedModelApplier();
             _pedEvents = new PedEvents(EventHandlers);
+            _pedAnimationClient = new PedAnimationClient();
 
             DecorRegister("PersistentPedId", 3); // 3 = integer type
 
@@ -66,6 +68,15 @@ namespace PedManager.Client
 					Debug.WriteLine($"[PedManager] Error applying model '{modelName}': {ex}");
 				}
 			});
+
+            EventHandlers["PedManager:Client:PlayAnimation"] += new Action<int, string, string, int>(OnPlayAnimation);
+
 		}
+
+
+        private async void OnPlayAnimation(int netId, string animDict, string animName, int animFlag)
+        {
+            await _pedAnimationClient.PlayAnimation(netId, animDict, animName, animFlag);
+        }
     }
 }
