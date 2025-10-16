@@ -167,7 +167,7 @@ namespace PlayerCore.Client
 			};
 		}
 
-		// Peform spawn using spawnmanagert using server-provided data
+		// Perform spawn using spawnmanager using server-provided data
 		private async Task SpawnWithManagerAsync(SpawnData data)
 		{
 			// Options accepted by spawnmanager
@@ -181,7 +181,6 @@ namespace PlayerCore.Client
 				["skipFade"] = false
 			};
 
-
 			Exports["spawnmanager"].spawnPlayer(options, new Action(async () =>
 			{
 				try
@@ -192,8 +191,16 @@ namespace PlayerCore.Client
 					if (data.Health > 0) SetEntityHealth(ped, data.Health);
 					if (data.Armor > 0) SetPedArmour(ped, data.Armor);
 
+					// Force load the spawn area to refresh LODs and rendering
+					RequestCollisionAtCoord(data.X, data.Y, data.Z);
+					LoadScene(data.X, data.Y, data.Z);
+					SetFocusPosAndVel(data.X, data.Y, data.Z, 0.0f, 0.0f, 0.0f);
+
+					// Clear focus after a short delay to allow loading
+					_ = ClearFocusDelayed();
+
 					// Signal a single player spawn event
-					// - PedManager listens and applies appearence(no model swap here)
+					// - PedManager listens and applies appearance (no model swap here)
 					// - Armory listens and loads weapons
 					TriggerEvent("PlayerCore:Client:PostSpawned", ped, data.X, data.Y, data.Z, data.Heading, data.PedModel);
 
@@ -209,6 +216,13 @@ namespace PlayerCore.Client
 			}));
 
 			await Task.FromResult(0);
+		}
+
+		// Helper method to clear focus after loading the area
+		private async Task ClearFocusDelayed()
+		{
+			await Delay(500);
+			ClearFocus();
 		}
 
 		// Death handling : keep notify server, spawnmanager will auto-respawn using callback
